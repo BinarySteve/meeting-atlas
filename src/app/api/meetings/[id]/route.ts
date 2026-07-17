@@ -30,6 +30,9 @@ export async function DELETE(_request: Request, context: RouteContext<"/api/meet
   try { userId = await requireUserId(); } catch { return NextResponse.json({ error: "Unauthorized" }, { status: 401 }); }
   const { id } = await context.params;
   try { await deleteMeetingData(id, userId); }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Delete failed" }, { status: 409 }); }
+  catch (error) {
+    const message = error instanceof Error && ["Meeting not found", "Cannot delete meeting while processing is active", "Meeting data is busy; try again shortly"].includes(error.message) ? error.message : "Delete failed";
+    return NextResponse.json({ error: message }, { status: message === "Meeting not found" ? 404 : 409 });
+  }
   return NextResponse.json({ ok: true });
 }
