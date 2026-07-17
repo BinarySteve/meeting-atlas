@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { groupTranscriptSegments, type TranscriptGroup } from "@/lib/transcript-display";
 import type { ProcessingSnapshot } from "@/lib/processing-status";
+import { MeetingDeleteButton } from "@/app/meeting-delete-button";
 
 type Speaker = { id: string; displayName: string };
 type Segment = { id: string; startMs: number; endMs: number; text: string; speakerId: string | null; speakerName: string; excluded: boolean };
@@ -17,6 +18,7 @@ type InsightTab = "summary" | "actions" | "decisions" | "topics";
 
 export function MeetingWorkspace(props: {
   meetingId: string;
+  meetingTitle: string;
   recordingUrl?: string;
   recordingName: string | null;
   initialProcessing: ProcessingSnapshot;
@@ -47,6 +49,7 @@ export function MeetingWorkspace(props: {
   const [streamConnected, setStreamConnected] = useState(false);
   const [summarySubmitting, setSummarySubmitting] = useState(false);
   const [processingActionBusy, setProcessingActionBusy] = useState(false);
+  const [speakerEditorOpen, setSpeakerEditorOpen] = useState(false);
   const requestedView = searchParams.get("view") ?? props.initialView;
   const view = (["transcript", "summary", "actions", "details"] as const).find((item) => item === requestedView) ?? "transcript";
   const [insightTab, setInsightTab] = useState<InsightTab>(view === "actions" ? "actions" : "summary");
@@ -165,7 +168,7 @@ export function MeetingWorkspace(props: {
       </section>
 
       <section className={`transcript-panel ${view !== "transcript" ? "mobile-hidden" : ""}`}>
-        <div className="panel-heading"><div><p className="panel-label">Transcript</p><h2>Conversation</h2></div><button type="button" className="compact-button" aria-pressed={compactTranscript} onClick={() => setCompactTranscript((value) => !value)}>{compactTranscript ? "Source view" : "Compact view"}</button></div>
+        <div className="panel-heading"><div><p className="panel-label">Transcript</p><h2>Conversation</h2></div><div className="panel-heading-actions"><button type="button" className="compact-button" onClick={() => setSpeakerEditorOpen(true)}>Edit speakers</button><button type="button" className="compact-button" aria-pressed={compactTranscript} onClick={() => setCompactTranscript((value) => !value)}>{compactTranscript ? "Source view" : "Compact view"}</button></div></div>
         {props.transcript && <div className="transcript-search"><label className="sr-only" htmlFor="transcript-search">Search transcript</label><input id="transcript-search" type="search" value={transcriptQuery} onChange={(event) => setTranscriptQuery(event.target.value)} placeholder="Search in transcript"/><span role="status">{transcriptQuery ? `${visibleGroups.length} matches` : `${transcriptGroups.length} passages`}</span></div>}
         {props.transcript ? <div className="transcript">{visibleGroups.map((group) => <article id={`transcript-group-${group.id}`} className={`segment-row ${activeGroup?.id === group.id ? "active" : ""}`} key={group.id} onDoubleClick={() => seek(group)}>
           <button className="seek" onClick={() => seek(group)} aria-label={`Play from ${formatMs(group.startMs)}`}>{formatMs(group.startMs)}</button>
@@ -188,11 +191,26 @@ export function MeetingWorkspace(props: {
     <AudioPlayer recordingUrl={props.recordingUrl} playing={playing} currentMs={currentMs} durationMs={durationMs} volume={volume} followTranscript={followTranscript} activeSpeaker={activeSegment?.speakerName} onToggle={togglePlayback} onSeek={seekPosition} onRate={changeRate} onVolume={changeVolume} onSkip={skip} onFollow={() => setFollowTranscript((value) => !value)}/>
 
     <section className={`details-panel ${view !== "details" ? "mobile-hidden" : ""}`}>
-      <div className="details-grid"><div><p className="panel-label">Processing</p><h2>Pipeline details</h2><PipelineDetails processing={processing} onRequest={request}/></div><div><p className="panel-label">People</p><h2>Speakers</h2><div className="speaker-grid">{props.speakers.map((speaker) => <form key={speaker.id} onSubmit={(event) => { event.preventDefault(); void request(`/api/meetings/${props.meetingId}/speakers/${speaker.id}`, "PATCH", { displayName: String(new FormData(event.currentTarget).get("name") ?? "") }); }}><label htmlFor={`speaker-${speaker.id}`}>Speaker name</label><input id={`speaker-${speaker.id}`} name="name" defaultValue={speaker.displayName} maxLength={100} required/><button>Rename</button></form>)}</div></div><div><p className="panel-label">Files</p><h2>Export</h2><div className="button-row">{["txt", "md", "json", "srt", "vtt"].map((format) => <a className="button" href={`/api/meetings/${props.meetingId}/exports?format=${format}`} key={format}>{format.toUpperCase()}</a>)}</div></div><div><p className="panel-label">Privacy</p><h2>Retention</h2><form className="retention-form" onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); void request(`/api/meetings/${props.meetingId}`, "PATCH", { retentionUntil: String(data.get("until") || "") || null, protectedFromRetention: data.get("protected") === "on" }); }}><label>Delete after<input name="until" type="date" defaultValue={props.retention.until ?? ""}/></label><label className="checkbox"><input name="protected" type="checkbox" defaultChecked={props.retention.protected}/> Protect from automatic retention</label><button>Save retention</button></form><button className="danger" onClick={async () => { if (!window.confirm("Permanently delete this meeting, recording, transcript, summaries, and exports?")) return; const response = await fetch(`/api/meetings/${props.meetingId}`, { method: "DELETE" }); if (response.ok) router.push("/"); else setMessage("Delete failed"); }}>Delete meeting permanently</button></div></div>
+      <div className="details-grid"><div><p className="panel-label">Processing</p><h2>Pipeline details</h2><PipelineDetails processing={processing} onRequest={request}/></div><div><p className="panel-label">People</p><h2>Speakers</h2><div className="speaker-grid">{props.speakers.map((speaker) => <form key={speaker.id} onSubmit={(event) => { event.preventDefault(); void request(`/api/meetings/${props.meetingId}/speakers/${speaker.id}`, "PATCH", { displayName: String(new FormData(event.currentTarget).get("name") ?? "") }); }}><label htmlFor={`speaker-${speaker.id}`}>Speaker name</label><input id={`speaker-${speaker.id}`} name="name" defaultValue={speaker.displayName} maxLength={100} required/><button>Rename</button></form>)}</div></div><div><p className="panel-label">Files</p><h2>Export</h2><div className="button-row">{["txt", "md", "json", "srt", "vtt"].map((format) => <a className="button" href={`/api/meetings/${props.meetingId}/exports?format=${format}`} key={format}>{format.toUpperCase()}</a>)}</div></div><div><p className="panel-label">Privacy</p><h2>Retention</h2><form className="retention-form" onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); void request(`/api/meetings/${props.meetingId}`, "PATCH", { retentionUntil: String(data.get("until") || "") || null, protectedFromRetention: data.get("protected") === "on" }); }}><label>Delete after<input name="until" type="date" defaultValue={props.retention.until ?? ""}/></label><label className="checkbox"><input name="protected" type="checkbox" defaultChecked={props.retention.protected}/> Protect from automatic retention</label><button>Save retention</button></form><MeetingDeleteButton meetingId={props.meetingId} meetingTitle={props.meetingTitle}/></div></div>
       <details className="audit-details"><summary>Audit history</summary>{props.audits.length ? <ol className="audit-list">{props.audits.map((event) => <li key={event.id}><time>{event.createdAtLabel}</time><strong>{event.action}</strong><span>{event.entityType}</span></li>)}</ol> : <p className="empty">No audited changes yet.</p>}</details>
     </section>
     <p role="status" className="sticky-status">{message}</p>
+    <SpeakerEditorDialog open={speakerEditorOpen} speakers={props.speakers} meetingId={props.meetingId} onClose={() => setSpeakerEditorOpen(false)} onRequest={request}/>
   </>;
+}
+
+function SpeakerEditorDialog({ open, speakers, meetingId, onClose, onRequest }: { open: boolean; speakers: Speaker[]; meetingId: string; onClose: () => void; onRequest: (url: string, method: "POST" | "PATCH", body?: unknown) => Promise<boolean> }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const node = dialog.current;
+    if (!node) return;
+    if (open && !node.open) node.showModal();
+    if (!open && node.open) node.close();
+  }, [open]);
+  return <dialog ref={dialog} className="speaker-editor-dialog" onCancel={(event) => { event.preventDefault(); onClose(); }} onClose={onClose}>
+    <div className="modal-heading"><div><p className="panel-label">People</p><h2>Edit speaker names</h2><p>Replace automatic labels with names you recognize.</p></div><button type="button" className="modal-close" aria-label="Close speaker editor" onClick={onClose}>×</button></div>
+    <div className="speaker-grid">{speakers.length ? speakers.map((speaker) => <form key={speaker.id} onSubmit={(event) => { event.preventDefault(); void onRequest(`/api/meetings/${meetingId}/speakers/${speaker.id}`, "PATCH", { displayName: String(new FormData(event.currentTarget).get("name") ?? "") }); }}><label htmlFor={`modal-speaker-${speaker.id}`}>Current label: {speaker.displayName}</label><input id={`modal-speaker-${speaker.id}`} name="name" defaultValue={speaker.displayName} maxLength={100} required/><button>Save name</button></form>) : <p className="empty">Speakers appear after diarization completes.</p>}</div>
+  </dialog>;
 }
 
 function AudioPlayer(props: { recordingUrl?: string; playing: boolean; currentMs: number; durationMs: number; volume: number; followTranscript: boolean; activeSpeaker?: string; onToggle: () => void; onSeek: (value: number) => void; onRate: (value: number) => void; onVolume: (value: number) => void; onSkip: (seconds: number) => void; onFollow: () => void }) {

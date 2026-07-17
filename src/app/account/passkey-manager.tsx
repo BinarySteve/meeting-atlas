@@ -8,6 +8,7 @@ import type { PublicKeyCredentialCreationOptionsJSON } from "@simplewebauthn/ser
 import { useState, useSyncExternalStore } from "react";
 import { APP_NAME } from "@/lib/brand";
 import { PASSWORD_INPUT_MAX_LENGTH } from "@/lib/password-policy";
+import { ConfirmationDialog } from "@/app/confirmation-dialog";
 
 type Passkey = {
   id: string;
@@ -76,11 +77,13 @@ export function PasskeyManager({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
+  const [revokeTarget, setRevokeTarget] = useState<Passkey>();
   const supported = useSyncExternalStore(
     subscribeBrowserCapability,
     browserSupportsWebAuthn,
     () => false,
   );
+  const appInstalled = useSyncExternalStore(subscribeInstalledState, getInstalledState, () => true);
 
   async function refresh() {
     const response = await fetch("/api/account/passkeys");
@@ -141,6 +144,25 @@ export function PasskeyManager({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function revokePasskey() {
+    if (!revokeTarget || busy) return;
+    setBusy(true);
+    setMessage("");
+    const response = await fetch(`/api/account/passkeys/${revokeTarget.id}`, {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ currentPassword }),
+    });
+    const result = (await response.json()) as { error?: string };
+    if (response.ok) {
+      setCurrentPassword("");
+      setMessage("Passkey revoked. Other sessions were signed out.");
+      setRevokeTarget(undefined);
+      await refresh();
+    } else setMessage(result.error ?? "Could not revoke passkey.");
+    setBusy(false);
   }
 
   return (
@@ -249,38 +271,14 @@ export function PasskeyManager({
                   </dl>
                   <button
                     className="button revoke-button"
-                    onClick={async () => {
+                    onClick={() => {
                       if (!currentPassword) {
                         setMessage(
                           "Enter your current password above before revoking a passkey.",
                         );
                         return;
                       }
-                      if (
-                        !window.confirm(
-                          `${passkeys.length === 1 ? "This is your last passkey. Password recovery will remain available. " : ""}Revoke ${key.name}?`,
-                        )
-                      )
-                        return;
-                      const response = await fetch(
-                        `/api/account/passkeys/${key.id}`,
-                        {
-                          method: "DELETE",
-                          headers: { "content-type": "application/json" },
-                          body: JSON.stringify({ currentPassword }),
-                        },
-                      );
-                      const result = (await response.json()) as {
-                        error?: string;
-                      };
-                      if (response.ok) {
-                        setCurrentPassword("");
-                        setMessage(
-                          "Passkey revoked. Other sessions were signed out.",
-                        );
-                        await refresh();
-                      } else
-                        setMessage(result.error ?? "Could not revoke passkey.");
+                      setRevokeTarget(key);
                     }}
                   >
                     Revoke
@@ -298,7 +296,7 @@ export function PasskeyManager({
       </div>
 
       <aside className="security-aside">
-        <section className="security-card install-help">
+        {!appInstalled && <section className="security-card install-help">
           <SecurityIcon name="install" />
           <div>
             <p className="eyebrow">App access</p>
@@ -315,7 +313,7 @@ export function PasskeyManager({
               </li>
             </ol>
           </div>
-        </section>
+        </section>}
         <section className="security-card privacy-help">
           <SecurityIcon name="shield" />
           <div>
@@ -331,12 +329,25 @@ export function PasskeyManager({
       <p className="form-status account-status" role="status">
         {message}
       </p>
+      <ConfirmationDialog open={Boolean(revokeTarget)} title="Revoke passkey?" description={`${revokeTarget?.name ?? "This passkey"} will no longer sign in to this account. Other sessions will be signed out.${passkeys.length === 1 ? " This is your last passkey; password recovery remains available." : ""}`} confirmLabel="Revoke passkey" danger busy={busy} onCancel={() => setRevokeTarget(undefined)} onConfirm={() => void revokePasskey()}/>
     </div>
   );
 }
 
 function subscribeBrowserCapability() {
   return () => undefined;
+}
+function getInstalledState() {
+  return window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+}
+function subscribeInstalledState(onChange: () => void) {
+  const media = window.matchMedia("(display-mode: standalone)");
+  media.addEventListener("change", onChange);
+  window.addEventListener("appinstalled", onChange);
+  return () => {
+    media.removeEventListener("change", onChange);
+    window.removeEventListener("appinstalled", onChange);
+  };
 }
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString("en-US", {

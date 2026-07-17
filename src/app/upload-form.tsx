@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { ConfirmationDialog } from "@/app/confirmation-dialog";
 
 export function UploadForm() {
   const router = useRouter();
@@ -11,12 +12,13 @@ export function UploadForm() {
   const [file, setFile] = useState<File>();
   const [title, setTitle] = useState("");
   const [progress, setProgress] = useState(0);
+  const [pendingNavigation, setPendingNavigation] = useState<string>();
   const xhr = useRef<XMLHttpRequest | null>(null);
   const submissionLocked = useRef(false);
   const today = new Date().toISOString().slice(0, 10);
   function choose(next?: File) { setFile(next); if (next && !title) setTitle(next.name.replace(/\.[^.]+$/, "").replaceAll(/[_-]+/g, " ").replaceAll(/\s+/g, " ").trim()); setStatus(""); }
-  useEffect(() => { if (!busy) return; const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); }; const navigate = (event: MouseEvent) => { const anchor = (event.target as Element).closest("a"); if (anchor && !window.confirm("Upload is still in progress. Leave this page and cancel it?")) event.preventDefault(); }; window.addEventListener("beforeunload", unload); document.addEventListener("click", navigate, true); return () => { window.removeEventListener("beforeunload", unload); document.removeEventListener("click", navigate, true); }; }, [busy]);
-  return <form className="upload-card" onSubmit={async (event) => {
+  useEffect(() => { if (!busy) return; const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); }; const navigate = (event: MouseEvent) => { const anchor = (event.target as Element).closest("a"); if (!anchor || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); setPendingNavigation(anchor.href); }; window.addEventListener("beforeunload", unload); document.addEventListener("click", navigate, true); return () => { window.removeEventListener("beforeunload", unload); document.removeEventListener("click", navigate, true); }; }, [busy]);
+  return <><form className="upload-card" onSubmit={async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     if (!file || submissionLocked.current) return;
@@ -36,7 +38,7 @@ export function UploadForm() {
     <p className="privacy-strip"><span aria-hidden="true">⌂</span><span><strong>Processed on your system</strong><br/>Audio and meeting content remain on your local system.</span></p>
     {busy && <div className="progress-block"><div><span>{status}</span><strong>{progress}%</strong></div><progress max="100" value={progress}/></div>}
     <div className="form-actions"><button className="button primary" disabled={busy || !file}>{busy ? "Uploading…" : "Start upload"}</button>{busy && <button className="button secondary" type="button" onClick={() => xhr.current?.abort()}>Cancel upload</button>}<Link className="button tertiary" href="/">Back</Link></div><p role="status" className={status.includes("failed") || status.includes("lost") ? "form-error" : "form-status"}>{status}</p>
-  </form>;
+  </form><ConfirmationDialog open={Boolean(pendingNavigation)} title="Cancel upload and leave?" description="Upload is still in progress. Leaving now will cancel it, and this recording will not be processed." confirmLabel="Cancel upload and leave" danger onCancel={() => setPendingNavigation(undefined)} onConfirm={() => { const href = pendingNavigation; setPendingNavigation(undefined); xhr.current?.abort(); if (href) { const target = new URL(href); router.push(`${target.pathname}${target.search}${target.hash}`); } }}/></>;
 }
 
 function formatBytes(bytes: number) { return bytes < 1_048_576 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / 1_048_576).toFixed(1)} MB`; }

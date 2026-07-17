@@ -68,29 +68,26 @@ Normal live-status checks:
 
 ## Backup
 
-Quiesce worker first. Back up PostgreSQL and storage root at same logical point. Redis AOF aids queue recovery but is not meeting authority.
+Settings > Backups creates a timestamped `.tar.gz` containing a custom-format PostgreSQL dump, full storage tree, and SHA-256 manifest. Creation and meeting deletion share a PostgreSQL advisory lifecycle lock. Database snapshot occurs before storage copy, so every storage object referenced by the snapshot is included; objects created later are harmless extras. Redis is not included because it is not meeting authority.
 
-```powershell
-docker compose stop worker
-docker compose exec -T postgres pg_dump -U meeting -d meeting_transcriber -Fc > meeting-transcriber.dump
-Compress-Archive -Path C:\docker\meeting-transcriber\data\* -DestinationPath meeting-transcriber-storage.zip
-docker compose start worker
-```
+Set `BACKUP_HOST_ROOT=C:/MeetingAtlasBackups` before starting Compose. Settings can create, verify, download, and delete archives. Verification checks every manifest hash and asks `pg_restore` to parse the database dump.
 
-Encrypt/copy both files together. Test restore periodically.
+Copy verified archives to encrypted storage on another physical device. A second folder on the same `C:` disk does not protect against disk failure. Test restore periodically.
 
 ## Restore
 
 ```powershell
 docker compose stop web worker
+New-Item -ItemType Directory -Force C:\MeetingAtlasRestore
+tar -xzf C:\MeetingAtlasBackups\meeting-atlas-manual-TIMESTAMP.tar.gz -C C:\MeetingAtlasRestore
 docker compose exec -T postgres dropdb -U meeting --if-exists meeting_transcriber
 docker compose exec -T postgres createdb -U meeting meeting_transcriber
-Get-Content -AsByteStream meeting-transcriber.dump | docker compose exec -T postgres pg_restore -U meeting -d meeting_transcriber --clean --if-exists
-Expand-Archive meeting-transcriber-storage.zip -DestinationPath C:\docker\meeting-transcriber\data -Force
+Get-Content -AsByteStream C:\MeetingAtlasRestore\database.dump | docker compose exec -T postgres pg_restore -U meeting -d meeting_transcriber --clean --if-exists
+Copy-Item -Recurse -Force C:\MeetingAtlasRestore\storage\* C:\Code\meeting-transcriber\data\
 docker compose up -d
 ```
 
-Verify health, several recordings, transcript seek, and export after restore.
+Restore remains manual by design; browser routes never replace live PostgreSQL or storage. Verify health, several recordings, transcript seek, and export after restore.
 
 ## Retention
 

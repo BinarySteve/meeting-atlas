@@ -20,6 +20,7 @@ RUN npx prisma generate && \
 FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=6982 HOSTNAME=0.0.0.0
+RUN apk add --no-cache ffmpeg postgresql17-client
 COPY --from=build /app ./
 EXPOSE 6982
 CMD ["npm", "start"]

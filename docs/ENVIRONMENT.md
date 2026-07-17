@@ -7,6 +7,8 @@
 - `APP_BIND_IP`: host interface for Compose TCP 6982; default loopback. Use a trusted LAN address when Nginx Proxy Manager runs on another host; do not expose it to WAN.
 - `REDIS_URL`: Redis connection string used by BullMQ and lightweight processing-status Pub/Sub invalidations. PostgreSQL remains status authority.
 - `STORAGE_ROOT`: mounted/local root for recordings and generated artifacts.
+- `BACKUP_HOST_ROOT`: Windows host folder mounted read/write at `/backups` by Compose; recommended `C:/MeetingAtlasBackups`.
+- `BACKUP_ROOT`: backup archive directory seen by native development execution. Compose overrides it to `/backups`.
 - `MAX_UPLOAD_BYTES`: upload ceiling; default `2147483648` (2 GiB).
 - `SESSION_SECRET`: 32+ byte session signing secret.
 - `WEBAUTHN_RP_ID`: stable passkey relying-party hostname without scheme or port (`localhost` only for development).
@@ -21,7 +23,8 @@
 - `PROCESSING_API_CREDENTIAL`: shared 32+ byte service secret.
 - `LM_STUDIO_URL`: local LM Studio OpenAI-compatible `/v1` URL used by health checks.
 - `LM_STUDIO_MODEL`: local model identifier.
-- `FFPROBE_PATH`, `FFMPEG_PATH`: executable names/absolute paths.
+- `FFPROBE_PATH`, `FFMPEG_PATH`: executable names/absolute paths for native execution. The Docker image installs FFmpeg and Compose overrides both values with Linux container commands, even if the host `.env` contains Windows paths.
+- `PG_DUMP_PATH`, `PG_RESTORE_PATH`, `TAR_PATH`: optional native backup tool overrides. Runtime image includes PostgreSQL client tools and tar.
 - `SUBPROCESS_TIMEOUT_MS`: upper bound for long local/remote work.
 - `HEALTH_TIMEOUT_MS`: dependency health deadline.
 - `RETENTION_DAYS`: `0` disables default age deletion; explicit meeting date still applies.

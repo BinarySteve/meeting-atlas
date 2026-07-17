@@ -18,6 +18,10 @@ Production requires HTTPS and a stable hostname. `WEBAUTHN_RP_ID` and `WEBAUTHN_
 
 Service worker allowlist contains only the offline screen and app icons. It does not cache authenticated pages, APIs, authentication responses, recordings/audio ranges, transcripts, summaries, action items, decisions, or owner data. Navigation uses network and falls back to the public offline explanation only when unreachable.
 
+## Backup boundary
+
+Backup list, creation, verification, download, and deletion require owner authentication; mutations also enforce expected origin. Archive names are generated and allowlisted, paths are canonicalized under configured backup root, and tar entries are checked before extraction. Archives include private recordings and database content, receive no-store download headers, and must be encrypted when copied elsewhere. Browser routes never restore or overwrite live data.
+
 ## Processing event stream
 
 The meeting processing SSE endpoint requires the same owner session as the meeting page and verifies access before opening the stream. Redis channel messages are invalidations only and contain no transcript, summary, evidence, recording, or owner content. The server re-reads PostgreSQL and sends only the processing snapshot required by the UI.

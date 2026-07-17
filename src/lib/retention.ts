@@ -1,8 +1,10 @@
 import { db } from "./db";
 import { removeStorageKey } from "./storage";
+import { withDataLifecycleLock } from "./data-lifecycle";
 import { writeAudit } from "./audit";
 
 export async function deleteMeetingData(meetingId: string, userId?: string): Promise<void> {
+  return withDataLifecycleLock(async () => {
   const meeting = await db.meeting.findUnique({
     where: { id: meetingId },
     include: { recordings: true, exports: true },
@@ -25,6 +27,9 @@ export async function deleteMeetingData(meetingId: string, userId?: string): Pro
   for (const key of keys) await removeStorageKey(key);
   await db.$transaction(async (tx) => {
     await writeAudit(tx, { userId, action: "meeting.delete", entityType: "Meeting", entityId: meetingId, metadata: { title: meeting.title, storageObjectsDeleted: keys.size } });
+    await tx.rawTranscriptionArtifact.deleteMany({ where: { meetingId } });
+    await tx.rawDiarizationArtifact.deleteMany({ where: { meetingId } });
     await tx.meeting.delete({ where: { id: meetingId } });
+  });
   });
 }

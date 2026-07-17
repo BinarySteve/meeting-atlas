@@ -42,6 +42,7 @@ export default async function MeetingPage({ params, searchParams }: { params: Pr
     </header>
     <MeetingWorkspace
       meetingId={meeting.id}
+      meetingTitle={meeting.title}
       recordingUrl={recording ? `/api/meetings/${meeting.id}/recording` : undefined}
       recordingName={recording?.originalFilename ?? null}
       initialProcessing={processing!}

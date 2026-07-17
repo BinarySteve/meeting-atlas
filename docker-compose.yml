@@ -36,8 +36,15 @@ services:
       DATABASE_URL: postgresql://meeting:${POSTGRES_PASSWORD}@postgres:5432/meeting_transcriber
       REDIS_URL: redis://redis:6379
       STORAGE_ROOT: /data
+      BACKUP_ROOT: /backups
+      FFMPEG_PATH: ffmpeg
+      FFPROBE_PATH: ffprobe
     ports: ["${APP_BIND_IP:-127.0.0.1}:6982:6982"]
-    volumes: ["./data:/data"]
+    volumes:
+      - "./data:/data"
+      - type: bind
+        source: "${BACKUP_HOST_ROOT:-C:/MeetingAtlasBackups}"
+        target: /backups
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -58,6 +65,8 @@ services:
       DATABASE_URL: postgresql://meeting:${POSTGRES_PASSWORD}@postgres:5432/meeting_transcriber
       REDIS_URL: redis://redis:6379
       STORAGE_ROOT: /data
+      FFMPEG_PATH: ffmpeg
+      FFPROBE_PATH: ffprobe
     volumes: ["./data:/data"]
     depends_on:
       postgres: { condition: service_healthy }

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { SECURITY_ACTIONS } from "@/lib/security-events";
 import { AccountSettings } from "./account-settings";
 import { PasskeyManager } from "./passkey-manager";
+import { BackupManager } from "./backup-manager";
 
 export const metadata: Metadata = { title: "Account security" };
 
@@ -83,6 +84,7 @@ export default async function AccountPage() {
           createdAt: event.createdAt.toISOString(),
         }))}
       />
+      <BackupManager />
       <PasskeyManager
         initialPasskeys={user.passkeys.map((key) => ({
           ...key,

@@ -8,6 +8,7 @@ import {
   PASSWORD_MIN_LENGTH,
 } from "@/lib/password-policy";
 import { securityEventLabel } from "@/lib/security-events";
+import { ConfirmationDialog } from "@/app/confirmation-dialog";
 
 type Profile = {
   name: string;
@@ -39,6 +40,7 @@ export function AccountSettings({
   const [sessions, setSessions] = useState(initialSessions);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
+  const [revokeTarget, setRevokeTarget] = useState<string | "other-sessions">();
 
   async function refreshSessions() {
     const response = await fetch("/api/account/sessions", {
@@ -129,6 +131,7 @@ export function AccountSettings({
           : `${result.count ?? 0} other sessions revoked.`,
       );
       router.refresh();
+      setRevokeTarget(undefined);
     } else setMessage(result.error ?? "Unable to revoke session.");
     setBusy("");
   }
@@ -246,7 +249,7 @@ export function AccountSettings({
               <button
                 className="button secondary"
                 disabled={Boolean(busy)}
-                onClick={() => void revokeSession()}
+                onClick={() => setRevokeTarget("other-sessions")}
               >
                 {busy === "sessions" ? "Revoking…" : "Revoke other sessions"}
               </button>
@@ -279,7 +282,7 @@ export function AccountSettings({
                   <button
                     className="button revoke-button"
                     disabled={Boolean(busy)}
-                    onClick={() => void revokeSession(session.id)}
+                    onClick={() => setRevokeTarget(session.id)}
                   >
                     {busy === session.id ? "Revoking…" : "Revoke"}
                   </button>
@@ -317,6 +320,7 @@ export function AccountSettings({
       <p className="form-status account-page-status" role="status">
         {message}
       </p>
+      <ConfirmationDialog open={Boolean(revokeTarget)} title={revokeTarget === "other-sessions" ? "Revoke all other sessions?" : "Revoke this session?"} description={revokeTarget === "other-sessions" ? "Every other signed-in device will lose access and must sign in again." : "This device will lose access and must sign in again."} confirmLabel="Revoke session access" danger busy={Boolean(busy)} onCancel={() => setRevokeTarget(undefined)} onConfirm={() => void revokeSession(revokeTarget === "other-sessions" ? undefined : revokeTarget)}/>
     </>
   );
 }

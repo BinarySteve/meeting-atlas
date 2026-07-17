@@ -43,9 +43,11 @@ Raw transcription and diarization remain immutable artifacts. Editing creates ne
 
 Each summary targets one transcript version. Section summaries retain transcript IDs/timestamps. Final decisions, action items, open questions, and claims must pass Zod validation and reference known segment IDs. Summary restore changes active pointer; older summaries/items remain stored.
 
-## Search, exports, retention
+## Search, exports, retention, backups
 
 PostgreSQL full-text indexes cover meeting titles, speaker names, transcript text, action items, and summary JSON. Exports are generated through authenticated Next.js, saved under opaque storage keys, audited, then returned. Retention deletes all referenced recording, normalized, raw artifact, and export objects before deleting DB meeting; active jobs block deletion.
+
+Authenticated Settings backup controls create a custom PostgreSQL dump first, then copy opaque storage under a shared PostgreSQL advisory lifecycle lock that blocks meeting deletion across processes. Each local `.tar.gz` contains both data layers plus per-file SHA-256 manifest. Verification checks hashes and PostgreSQL dump readability. Download and deletion remain owner-only and audited; restore is deliberately operator-only and offline from browser routes.
 
 ## Failure recovery
 

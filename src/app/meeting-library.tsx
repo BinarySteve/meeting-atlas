@@ -3,6 +3,7 @@ import Form from "next/form";
 import Link from "next/link";
 import { z } from "zod";
 import { FormSubmitButton } from "@/app/form-submit-button";
+import { MeetingDeleteButton } from "@/app/meeting-delete-button";
 import { requireUserId } from "@/lib/auth";
 import { searchMeetings } from "@/lib/meeting-search";
 
@@ -41,7 +42,7 @@ export async function MeetingLibrary({ searchParams, searchMode = false }: { sea
 }
 
 type SearchMeeting = Awaited<ReturnType<typeof searchMeetings>>[number];
-function MeetingCard({ meeting }: { meeting: SearchMeeting }) { const duration = meeting.recordings[0]?.durationMs; return <Link className="meeting-card" href={`/meetings/${meeting.id}`}><div className="meeting-card-main"><div><span className={`status-badge status-${meeting.state.toLowerCase()}`}><span aria-hidden="true"/>{humanize(meeting.state)}</span><h3>{meeting.title}</h3></div><span aria-hidden="true" className="card-arrow">→</span></div><div className="meeting-meta"><time>{(meeting.recordingDate ?? meeting.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</time>{duration && <span>{formatDuration(Number(duration))}</span>}<span>{meeting.speakers.length} {meeting.speakers.length === 1 ? "speaker" : "speakers"}</span><span>Uploaded audio</span><span>{meeting.summaries.length ? "Summary ready" : "Summary pending"}</span></div>{meeting.speakers.length > 0 && <p>{meeting.speakers.slice(0, 3).map((speaker) => speaker.displayName).join(", ")}</p>}</Link>; }
+function MeetingCard({ meeting }: { meeting: SearchMeeting }) { const duration = meeting.recordings[0]?.durationMs; return <article className="meeting-card-shell"><Link className="meeting-card" href={`/meetings/${meeting.id}`}><div className="meeting-card-main"><div><span className={`status-badge status-${meeting.state.toLowerCase()}`}><span aria-hidden="true"/>{humanize(meeting.state)}</span><h3>{meeting.title}</h3></div><span aria-hidden="true" className="card-arrow">→</span></div><div className="meeting-meta"><time>{(meeting.recordingDate ?? meeting.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</time>{duration && <span>{formatDuration(Number(duration))}</span>}<span>{meeting.speakers.length} {meeting.speakers.length === 1 ? "speaker" : "speakers"}</span><span>Uploaded audio</span><span>{meeting.summaries.length ? "Summary ready" : "Summary pending"}</span></div>{meeting.speakers.length > 0 && <p>{meeting.speakers.slice(0, 3).map((speaker) => speaker.displayName).join(", ")}</p>}</Link><MeetingDeleteButton className="meeting-card-delete" meetingId={meeting.id} meetingTitle={meeting.title}/></article>; }
 function humanize(value: string): string { return value.replaceAll(/([A-Z])/g, " $1").replaceAll("_", " ").trim().toLowerCase(); }
 function formatDuration(ms: number): string { const minutes = Math.round(ms / 60_000); return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`; }
 function date(value?: string): Date | undefined { return value ? new Date(`${value}T00:00:00`) : undefined; }
