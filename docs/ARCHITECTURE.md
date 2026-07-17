@@ -1,0 +1,60 @@
+# Architecture
+
+## Security boundary
+
+Browser talks only to LAN-bound Next.js. Signed HTTP-only, SameSite=Strict owner session protects UI and APIs. No public registration exists. PostgreSQL and Redis stay on private Compose network. FastAPI requires 32+ byte shared bearer credential. LM Studio remains processing-service-only dependency. No hosted inference or telemetry.
+
+## Windows application
+
+Next.js streams raw request bodies directly into generated filesystem keys. Client filename is metadata only. PostgreSQL owns meeting state and stable references. Redis AOF + BullMQ preserve queued work. Separate Node worker performs checkpointed stages independently of browser sessions.
+
+FFprobe/FFmpeg use argument arrays with no shell interpolation, bounded logs, timeouts, and abort signals. Upload extensions/MIME are never trusted. Original stays immutable; working copy is mono 16 kHz PCM WAV.
+
+## Kubuntu processing service
+
+Authenticated FastAPI controls Vulkan/ROCm/CPU-configurable whisper.cpp, whole-file WeSpeaker diarization, and LM Studio. Current benchmark selected Vulkan whisper.cpp; diarization uses CPU. Remote request IDs allow active cancellation. Whisper subprocess cancellation kills child process. Service runs under user systemd with restart policy and offline model flags.
+
+WeSpeaker processes complete normalized recording using local Silero VAD, speaker embeddings, UMAP/HDBSCAN clustering, and stable raw labels. It emits non-overlapping turns. Timeline alignment groups Whisper words at source-segment, sentence, pause, and duration boundaries, then assigns each natural phrase only when overlap confidence and speaker dominance pass threshold.
+
+## Durable pipeline
+
+Stages: upload validation → inspection → normalization → transcription → diarization → alignment → assembly → hierarchical summarization → structured extraction → completion.
+
+Every attempt stores state, timestamps, error, result, attempt number, heartbeat, and unique idempotency key. Completed-stage guard resumes first incomplete stage. BullMQ retries exponentially and recovers stalled jobs. Cancellation polling reaches active local subprocesses and authenticated remote requests. Summary regeneration creates `SUMMARY_REGENERATION` job targeting transcript version, so audio stages never rerun.
+
+PostgreSQL is the authoritative processing-status store, including durable within-stage progress. A partial unique index permits only one active job per meeting, while stable BullMQ job IDs deduplicate same-run enqueue attempts. Workers publish lightweight Redis invalidations; authenticated server-sent events re-read PostgreSQL and push snapshots to every meeting tab. The UI disables conflicting actions immediately, shows queued/running/retrying/completed/failed states, and refreshes meeting artifacts once when a run becomes terminal.
+
+### Processing state ownership
+
+- `ProcessingJob` owns the run type, target transcript version, lifecycle state, attempt count, heartbeat, terminal error, and timestamps.
+- `ProcessingStageAttempt` owns stage state, attempt number, idempotency key, result/error data, and optional current/total/message progress.
+- PostgreSQL's partial unique index covers `QUEUED`, `ACTIVE`, `RETRYING`, and `CANCEL_REQUESTED`, closing the query-then-insert race for all job-creation paths.
+- BullMQ job IDs combine the durable job ID and run revision. Repeated enqueue calls for the same run collapse, while an explicit retry receives a new revision.
+
+### Live status path
+
+`GET /api/meetings/:id/processing` authenticates the owner, emits an initial PostgreSQL snapshot, then subscribes to the meeting's Redis notification channel. Notifications contain no transcript or summary content; they only prompt another database read. The stream also reconciles with PostgreSQL periodically, so dropped Pub/Sub messages or a reconnect cannot make Redis the source of truth.
+
+The client installs the stream once for the meeting workspace, independent of the selected tab. Local submission state gates the control before the network round trip. Server-side active-job checks and the database constraint remain the final concurrency boundary. The client refreshes server-rendered artifacts only on an active-to-terminal transition, avoiding repeated full transcript payloads while a stage runs.
+
+## Versioning and evidence
+
+Raw transcription and diarization remain immutable artifacts. Editing creates new transcript version with parent pointer. Text correction, speaker reassignment, split, merge, and summary exclusion never overwrite machine output. Speaker rename updates relational display name and alias history without touching raw diarization.
+
+Each summary targets one transcript version. Section summaries retain transcript IDs/timestamps. Final decisions, action items, open questions, and claims must pass Zod validation and reference known segment IDs. Summary restore changes active pointer; older summaries/items remain stored.
+
+## Search, exports, retention
+
+PostgreSQL full-text indexes cover meeting titles, speaker names, transcript text, action items, and summary JSON. Exports are generated through authenticated Next.js, saved under opaque storage keys, audited, then returned. Retention deletes all referenced recording, normalized, raw artifact, and export objects before deleting DB meeting; active jobs block deletion.
+
+## Failure recovery
+
+- Queue outage after upload leaves meeting/file referenced and job retryable.
+- Stage transaction never says completed before DB artifacts exist.
+- Partial normalization is removed on failure/cancel.
+- Retry resumes completed checkpoints.
+- Stale BullMQ locks retry automatically.
+- Missed Redis Pub/Sub invalidations are repaired by the event stream's PostgreSQL reconciliation.
+- Event-stream disconnects show reconnecting state; they do not interrupt the worker or alter durable progress.
+- Concurrent job creation is rejected by the PostgreSQL active-job constraint; the API returns the existing processing snapshot.
+- DB + storage must be backed up/restored together.

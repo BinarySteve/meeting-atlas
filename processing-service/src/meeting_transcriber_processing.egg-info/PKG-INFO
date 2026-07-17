@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: meeting-transcriber-processing
+Version: 0.1.0
+Summary: Private LAN-only meeting transcription, diarization, and local LLM service
+Requires-Python: <3.14,>=3.12
+Requires-Dist: fastapi==0.116.1
+Requires-Dist: httpx==0.28.1
+Requires-Dist: pydantic-settings==2.10.1
+Requires-Dist: python-multipart==0.0.20
+Requires-Dist: uvicorn[standard]==0.35.0
+Provides-Extra: diarization
+Requires-Dist: wespeaker @ git+https://github.com/wenet-e2e/wespeaker.git@dfa741957e5c11f477623b6e583d67d0af25ee88 ; extra == "diarization"
+Provides-Extra: dev
+Requires-Dist: mypy==1.17.1; extra == "dev"
+Requires-Dist: pytest==8.4.1; extra == "dev"
+Requires-Dist: ruff==0.12.9; extra == "dev"

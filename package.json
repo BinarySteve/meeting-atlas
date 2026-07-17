@@ -1,26 +1,56 @@
 {
-  "name": "use-caveman-mode-you-are-working",
+  "name": "meeting-transcriber",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 6982",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "start": "next start -p 6982",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:integration": "tsx scripts/test-integration.ts",
+    "test:e2e": "powershell -ExecutionPolicy Bypass -File scripts/generate-fixture.ps1 && tsx scripts/test-e2e.ts",
+    "worker": "tsx src/worker.ts",
+    "owner:create": "tsx scripts/create-owner.ts",
+    "owner:reset-password": "tsx scripts/reset-owner-password.ts",
+    "retention:run": "tsx scripts/run-retention.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:validate": "prisma validate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy"
   },
   "dependencies": {
-    "next": "16.2.10",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "@prisma/client": "^6.19.3",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.2",
+    "argon2": "^0.44.0",
+    "bullmq": "^5.80.2",
+    "busboy": "^1.6.0",
+    "ioredis": "^5.11.1",
+    "jose": "^6.2.3",
+    "next": "^16.2.10",
+    "pino": "^10.3.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/busboy": "^1.5.4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "prisma": "^6.19.3",
+    "sharp": "^0.35.3",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.23.0",
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

@@ -1,0 +1,30 @@
+# Implementation plan
+
+## Milestone status
+
+- Milestone 1: complete. Repository, schema/migrations, owner auth, storage, streaming upload, Redis/BullMQ, checkpoint worker, FFprobe/FFmpeg, health, simulation, UI, cancellation, DB/queue integration test.
+- Milestone 2: complete. Authenticated FastAPI, whisper.cpp Vulkan/ROCm builds and benchmark, model configuration, timestamps, raw artifacts, stage retry, synchronized playback, user systemd deployment.
+- Milestone 3: complete with documented backend limitation. Ungated WeSpeaker whole-file diarization, raw artifact, alignment, neutral speakers, rename/reassign, split/merge, uncertain assignment. Simultaneous-speaker overlap detection unavailable.
+- Milestone 4: complete. Hierarchical LM Studio JSON summaries, validation, evidence, action items, decisions, questions, transcript versions, summary regeneration/history/restore.
+- Milestone 5: complete. PostgreSQL full-text search/filtering, five exports, audit UI, retention, active cancellation, structured logging, security/operations/backup documentation, unit and integration tests.
+- Milestone 6: complete. Authoritative processing snapshots, durable within-stage counters, Redis invalidation Pub/Sub, authenticated SSE delivery, cross-tab status UI, immediate action gating, PostgreSQL active-job uniqueness, stable BullMQ enqueue IDs, and regeneration-race E2E coverage.
+
+## Decisions
+
+- Raw-body upload avoids multipart buffering/proxy limits.
+- 2 GiB configurable default; detected media decides acceptance.
+- Stable relative storage keys; no platform paths in DB.
+- No Qdrant initial foundation.
+- Zero contact sharing: ungated WeSpeaker, offline runtime, no HF token/account.
+- User systemd selected because system-wide installation requires sudo. `loginctl enable-linger` remains optional admin step for boot-before-login.
+- Playback review uses compact sentence-oriented display groups without rewriting source transcript segments; precise source editing and evidence IDs remain available.
+- PostgreSQL owns all processing state. Redis carries queue data and ephemeral change notifications but never replaces the durable snapshot.
+- Meeting workspaces use one event stream across all tabs and refresh large server-rendered artifacts only when processing becomes terminal.
+- Duplicate prevention is layered: immediate client gating improves feedback, API checks return the current snapshot, a partial database unique index closes races, and stable BullMQ IDs deduplicate delivery.
+
+## Known limitations / future work
+
+- WeSpeaker cannot identify simultaneous overlapping speakers; no assignments are invented.
+- User systemd starts with user session unless linger enabled.
+- The E2E harness exercises the authenticated HTTP UI/export surface, processing SSE, duplicate regeneration race, durable summary progress, and the complete live local-AI pipeline. Pixel-level browser automation is not included.
+- Future extensions remain voice profiles, browser recording, calendar/import integrations, mobile apps, Qdrant semantic search, email delivery.

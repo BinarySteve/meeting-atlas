@@ -1,0 +1,390 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MeetingState {
+  UPLOADING
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum JobState {
+  QUEUED
+  ACTIVE
+  RETRYING
+  COMPLETED
+  FAILED
+  CANCEL_REQUESTED
+  CANCELLED
+}
+
+enum JobKind {
+  AUDIO_PIPELINE
+  SUMMARY_REGENERATION
+}
+
+enum StageState {
+  PENDING
+  ACTIVE
+  COMPLETED
+  FAILED
+  SKIPPED
+  CANCELLED
+}
+
+enum TranscriptSource {
+  MACHINE
+  MANUAL
+}
+
+enum ItemStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+
+enum WebAuthnOperation {
+  REGISTRATION
+  AUTHENTICATION
+}
+
+model User {
+  id                 String              @id @default(cuid())
+  email              String              @unique
+  name               String?
+  passwordHash       String
+  passwordChangedAt  DateTime?
+  webauthnUserId     String?             @unique
+  createdAt          DateTime            @default(now())
+  auditEvents        AuditEvent[]
+  passkeys           Passkey[]
+  sessions           Session[]
+  webauthnChallenges WebAuthnChallenge[]
+}
+
+model Passkey {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String    @unique
+  publicKey    Bytes
+  counter      BigInt    @default(0)
+  transports   String[]
+  deviceType   String
+  backedUp     Boolean
+  name         String
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  @@index([userId, createdAt])
+}
+
+model WebAuthnChallenge {
+  id        String            @id @default(cuid())
+  userId    String?
+  user      User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge String            @unique
+  operation WebAuthnOperation
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime          @default(now())
+
+  @@index([expiresAt, usedAt])
+}
+
+model Session {
+  id        String    @id
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  authMethod String   @default("UNKNOWN")
+  deviceLabel String?
+  createdAt DateTime  @default(now())
+  lastSeenAt DateTime @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  @@index([userId, expiresAt])
+  @@index([userId, revokedAt, expiresAt])
+}
+
+model AuthRateLimit {
+  key           String    @id
+  attempts      Int       @default(0)
+  windowStarted DateTime  @default(now())
+  blockedUntil  DateTime?
+  updatedAt     DateTime  @updatedAt
+}
+
+model Meeting {
+  id                     String              @id @default(cuid())
+  title                  String
+  recordingDate          DateTime?
+  state                  MeetingState        @default(UPLOADING)
+  activeStage            String?
+  activeSummaryVersionId String?
+  retentionUntil         DateTime?
+  protectedFromRetention Boolean             @default(false)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  recordings             Recording[]
+  jobs                   ProcessingJob[]
+  speakers               Speaker[]
+  transcriptVersions     TranscriptVersion[]
+  summaries              SummaryVersion[]
+  actionItems            ActionItem[]
+  decisions              Decision[]
+  openQuestions          OpenQuestion[]
+  exports                Export[]
+  audits                 AuditEvent[]
+
+  @@index([state, createdAt])
+  @@index([retentionUntil, protectedFromRetention])
+}
+
+model Recording {
+  id                   String   @id @default(cuid())
+  meetingId            String
+  meeting              Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  storageKey           String   @unique
+  originalFilename     String
+  byteSize             BigInt
+  sha256               String
+  detectedFormat       String?
+  durationMs           BigInt?
+  sampleRate           Int?
+  channels             Int?
+  normalizedStorageKey String?
+  mediaMetadata        Json?
+  createdAt            DateTime @default(now())
+}
+
+model ProcessingJob {
+  id                        String                   @id @default(cuid())
+  meetingId                 String
+  meeting                   Meeting                  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  state                     JobState                 @default(QUEUED)
+  kind                      JobKind                  @default(AUDIO_PIPELINE)
+  targetTranscriptVersionId String?
+  activeStage               String?
+  attempt                   Int                      @default(0)
+  heartbeatAt               DateTime?
+  errorCode                 String?
+  errorMessage              String?
+  bullJobId                 String?                  @unique
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+  stages                    ProcessingStageAttempt[]
+}
+
+model ProcessingStageAttempt {
+  id                 String        @id @default(cuid())
+  jobId              String
+  job                ProcessingJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  stage              String
+  attempt            Int
+  state              StageState    @default(PENDING)
+  idempotencyKey     String        @unique
+  progressPositionMs BigInt?
+  progressCurrent    Int?
+  progressTotal      Int?
+  progressMessage    String?
+  result             Json?
+  logExcerpt         String?
+  errorCode          String?
+  errorMessage       String?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime      @default(now())
+
+  @@unique([jobId, stage, attempt])
+  @@index([jobId, stage, state])
+}
+
+model Speaker {
+  id             String              @id @default(cuid())
+  meetingId      String
+  meeting        Meeting             @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  diarizationKey String
+  displayName    String
+  createdAt      DateTime            @default(now())
+  aliases        SpeakerAlias[]
+  segments       TranscriptSegment[]
+  actionItems    ActionItem[]
+
+  @@unique([meetingId, diarizationKey])
+}
+
+model SpeakerAlias {
+  id        String    @id @default(cuid())
+  speakerId String
+  speaker   Speaker   @relation(fields: [speakerId], references: [id], onDelete: Cascade)
+  name      String
+  validFrom DateTime  @default(now())
+  validTo   DateTime?
+}
+
+model TranscriptVersion {
+  id        String              @id @default(cuid())
+  meetingId String
+  meeting   Meeting             @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  version   Int
+  source    TranscriptSource
+  parentId  String?
+  createdAt DateTime            @default(now())
+  segments  TranscriptSegment[]
+  summaries SummaryVersion[]
+
+  @@unique([meetingId, version])
+}
+
+model TranscriptSegment {
+  id                   String            @id @default(cuid())
+  transcriptVersionId  String
+  transcriptVersion    TranscriptVersion @relation(fields: [transcriptVersionId], references: [id], onDelete: Cascade)
+  speakerId            String?
+  speaker              Speaker?          @relation(fields: [speakerId], references: [id], onDelete: SetNull)
+  ordinal              Int
+  startMs              BigInt
+  endMs                BigInt
+  text                 String
+  confidence           Float?
+  assignmentConfidence Float?
+  assignmentReason     String?
+  excludedFromSummary  Boolean           @default(false)
+  sourceSegmentIds     String[]
+
+  @@unique([transcriptVersionId, ordinal])
+}
+
+model RawTranscriptionArtifact {
+  id             String   @id @default(cuid())
+  meetingId      String
+  stageAttemptId String   @unique
+  storageKey     String   @unique
+  modelName      String
+  backend        String
+  createdAt      DateTime @default(now())
+}
+
+model RawDiarizationArtifact {
+  id             String   @id @default(cuid())
+  meetingId      String
+  stageAttemptId String   @unique
+  storageKey     String   @unique
+  modelName      String
+  createdAt      DateTime @default(now())
+}
+
+model SummaryVersion {
+  id                  String            @id @default(cuid())
+  meetingId           String
+  meeting             Meeting           @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  transcriptVersionId String
+  transcriptVersion   TranscriptVersion @relation(fields: [transcriptVersionId], references: [id])
+  version             Int
+  status              StageState
+  modelName           String
+  content             Json?
+  createdAt           DateTime          @default(now())
+  sections            SectionSummary[]
+  actionItems         ActionItem[]
+  decisions           Decision[]
+  openQuestions       OpenQuestion[]
+
+  @@unique([meetingId, version])
+}
+
+model SectionSummary {
+  id                 String         @id @default(cuid())
+  summaryVersionId   String
+  summaryVersion     SummaryVersion @relation(fields: [summaryVersionId], references: [id], onDelete: Cascade)
+  ordinal            Int
+  startMs            BigInt
+  endMs              BigInt
+  evidenceSegmentIds String[]
+  content            Json
+
+  @@unique([summaryVersionId, ordinal])
+}
+
+model ActionItem {
+  id                 String          @id @default(cuid())
+  meetingId          String
+  meeting            Meeting         @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  summaryVersionId   String?
+  summaryVersion     SummaryVersion? @relation(fields: [summaryVersionId], references: [id], onDelete: Cascade)
+  description        String
+  assignedSpeakerId  String?
+  assignedSpeaker    Speaker?        @relation(fields: [assignedSpeakerId], references: [id], onDelete: SetNull)
+  typedOwner         String?
+  dueDate            DateTime?
+  status             ItemStatus      @default(OPEN)
+  confidence         Float?
+  evidenceSegmentIds String[]
+  creationSource     String
+  manuallyEdited     Boolean         @default(false)
+  rejectedAt         DateTime?
+
+  @@index([meetingId, summaryVersionId])
+}
+
+model Decision {
+  id                 String          @id @default(cuid())
+  meetingId          String
+  meeting            Meeting         @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  summaryVersionId   String?
+  summaryVersion     SummaryVersion? @relation(fields: [summaryVersionId], references: [id], onDelete: Cascade)
+  text               String
+  confidence         Float?
+  evidenceSegmentIds String[]
+  rejectedAt         DateTime?
+
+  @@index([meetingId, summaryVersionId])
+}
+
+model OpenQuestion {
+  id                 String          @id @default(cuid())
+  meetingId          String
+  meeting            Meeting         @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  summaryVersionId   String?
+  summaryVersion     SummaryVersion? @relation(fields: [summaryVersionId], references: [id], onDelete: Cascade)
+  text               String
+  evidenceSegmentIds String[]
+  resolvedAt         DateTime?
+
+  @@index([meetingId, summaryVersionId])
+}
+
+model Export {
+  id         String   @id @default(cuid())
+  meetingId  String
+  meeting    Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  format     String
+  storageKey String
+  createdAt  DateTime @default(now())
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  meetingId  String?
+  meeting    Meeting? @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([meetingId, createdAt])
+  @@index([userId, createdAt])
+}

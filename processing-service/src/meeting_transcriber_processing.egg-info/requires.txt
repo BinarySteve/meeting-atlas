@@ -1,0 +1,13 @@
+fastapi==0.116.1
+httpx==0.28.1
+pydantic-settings==2.10.1
+python-multipart==0.0.20
+uvicorn[standard]==0.35.0
+
+[dev]
+mypy==1.17.1
+pytest==8.4.1
+ruff==0.12.9
+
+[diarization]
+wespeaker @ git+https://github.com/wenet-e2e/wespeaker.git@dfa741957e5c11f477623b6e583d67d0af25ee88

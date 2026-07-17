@@ -1,0 +1,457 @@
+<!DOCTYPE html> <html lang="en"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=undesired, width=device-width, initial-scale=1.0"> <title>Move Together - Workout Timer</title> <style> :root { --bg-color: #fffaf5; --card-bg: #ffffff; --accent-coral: #ff7f50; --accent-dark: #e66a3e; --text-main: #2d2d2d; --text-muted: #666666; --success: #4caf50; --shadow: 0 4px 12px rgba(0, 0, 0, 0.08); --radius: 16px; }
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: system-ui, -apple-system, sans-serif;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    line-height: 1.5;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 30px;
+    width: 100%;
+    max-width: 500px;
+}
+
+h1 {
+    color: var(--accent-coral);
+    font-size: 2rem;
+    margin-bottom: 4px;
+}
+
+.subtitle {
+    color: var(--text-muted);
+    font-size: 1rem;
+}
+
+main {
+    width: 100%;
+    max-width: 500px;
+}
+
+/* Progress Section */
+.progress-container {
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+}
+
+.progress-bar-bg {
+    background: #eee;
+    height: 12px;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+#progress-fill {
+    background: var(--accent-coral);
+    height: 100%;
+    width: 0%;
+    transition: width 0.4s ease;
+}
+
+.completed-list {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+/* Card Styles */
+.card {
+    background: var(--card-bg);
+    padding: 24px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+    transition: transform 0.2s ease;
+}
+
+.card h2 {
+    font-size: 1.4rem;
+    margin-bottom: 8px;
+}
+
+.details {
+    color: var(--text-muted);
+    margin-bottom: 20px;
+}
+
+.detail-item {
+    display: block;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+button {
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: background 0.2s, transform 0.1s;
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+button:focus-visible {
+    outline: 3px solid var(--accent-coral);
+    outline-offset: 2px;
+}
+
+.btn-start {
+    background-color: var(--accent-coral);
+    color: white;
+    width: 100%;
+}
+
+.btn-start:hover {
+    background-color: var(--accent-dark);
+}
+
+/* Active Panel */
+#active-panel {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg-color);
+    z-index: 100;
+    padding: 20px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.active-card {
+    background: white;
+    width: 100%;
+    max-width: 400px;
+    padding: 40px 20px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    text-align: center;
+}
+
+.timer-display {
+    font-size: 5rem;
+    font-weight: 800;
+    margin: 20px 0;
+    color: var(--text-main);
+    font-variant-numeric: tabular-nums;
+}
+
+.active-subtitle {
+    font-size: 1.2rem;
+    color: var(--accent-coral);
+    font-weight: bold;
+}
+
+.controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+    margin-top: 20px;
+}
+
+.btn-control {
+    padding: 15px;
+    background: #eee;
+    color: var(--text-main);
+}
+
+.btn-complete {
+    grid-column: span 2;
+    background: var(--success);
+    color: white;
+    margin-top: 10px;
+}
+
+.btn-reset {
+    grid-column: span 2;
+    background: transparent;
+    color: var(--text-muted);
+    text-decoration: underline;
+    margin-top: 15px;
+}
+
+.hidden { display: none !important; }
+
+@media (max-width: 400px) {
+    .timer-display { font-size: 3.5rem; }
+}
+</style>
+</head> <body>
+<header>
+    <h1>Move Together</h1>
+    <p class="subtitle">Bowflex and treadmill workout</p>
+</header>
+
+<main>
+    <!-- Progress Section -->
+    <section class="progress-container" aria-labelledby="progress-title">
+        <h2 id="progress-title" class="hidden">Workout Progress</h2>
+        <div id="progress-text">0 of 3 exercises completed</div>
+        <div class="progress-bar-bg">
+            <div id="progress-fill" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+        <div id="completed-list" class="completed-list"></div>
+    </section>
+
+    <!-- Workout List -->
+    <div id="workout-list">
+        <!-- Card 1 -->
+        <article class="card" data-id="1" data-type="strength" data-sets="3" data-reps="10" data-rest="60">
+            <h2>Bowflex Chest Press</h2>
+            <div class="details">
+                <span class="detail-item">3 sets • 10 reps</span>
+                <span class="detail-item">60 second rest</span>
+            </div>
+            <button class="btn-start" onclick="startWorkout(1)">Start Exercise</button>
+        </article>
+
+        <!-- Card 2 -->
+        <article class="card" data-id="2" data-type="cardio" data-duration="900">
+            <h2>Treadmill Walk</h2>
+            <div class="details">
+                <span class="detail-item">15 minutes</span>
+                <span class="detail-item">Moderate pace • 1% incline</span>
+            </div>
+            <button class="btn-start" onclick="startWorkout(2)">Start Exercise</button>
+        </article>
+
+        <!-- Card 3 -->
+        <article class="card" data-id="3" data-type="strength" data-sets="3" data-reps="12" data-rest="60">
+            <h2>Bowflex Seated Row</h2>
+            <div class="details">
+                <span class="detail-item">3 sets • 12 reps</span>
+                <span class="detail-item">60 second rest</span>
+            </div>
+            <button class="btn-start" onclick="startWorkout(3)">Start Exercise</button>
+        </article>
+    </div>
+</main>
+
+<!-- Active Timer Overlay -->
+<div id="active-panel" role="dialog" aria-modal="true">
+    <div class="active-card">
+        <p id="active-mode-label" class="active-subtitle">SET 1 / 3</p>
+        <h2 id="active-name">Exercise Name</h2>
+        <div id="timer-display" class="timer-display">00:00</div>
+
+        <div class="controls-grid">
+            <button id="btn-pause" class="btn-control" onclick="togglePause()">Pause</button>
+            <button id="btn-resume" class="btn-control hidden" onclick="togglePause()">Resume</button>
+            <button id="btn-complete" class="btn-complete" onclick="handleCompleteSet()">Complete Set</button>
+        </div>
+
+        <button class="btn-reset" onclick="resetWorkout()">Reset Workout</button>
+    </div>
+</div>
+
+<script>
+    let state = {
+        completedIds: [],
+        currentWorkout: null, // { id, type, totalSets, currentSet, remainingTime, isPaused, mode }
+        timerInterval: null
+    };
+
+    // Initialize from LocalStorage
+    function init() {
+        const saved = localStorage.EV_KEY = 'workout_state';
+        const storedState = localStorage.getItem(saved);
+        if (storedState) {
+            const parsed = JSON.parse(storedState);
+            state.completedIds = parsed.completedIds || [];
+            // If there was an active workout, we don't auto-resume to avoid confusion
+            // with timers running in background, but we keep the progress.
+        }
+        updateProgressUI();
+    }
+
+    function saveState() {
+        localStorage.setItem('workout_state', JSON.stringify({
+            completedIds: state.completedIds
+        }));
+    }
+
+    function updateProgressUI() {
+        const total = document.querySelectorAll('.card').length;
+        const completedCount = state.completedIds.length;
+        const percent = (completedCount / total) * 100;
+
+        document.getElementById('progress-text').innerText = `${completedCount} of ${total} exercises completed`;
+        document.getElementById('progress-fill').style.width = `${percent}%`;
+        document.getElementById('progress-fill').setAttribute('aria-valuenow', percent);
+
+        const listEl = document.getElementById('completed-list');
+        listEl.innerHTML = '';
+        state.completedIds.forEach(id => {
+            const card = document.querySelector(`.card[data-id="${id}"]`);
+            if (card) {
+                const span = document.createElement('div');
+                span.innerText = '✓ ' + card.querySelector('h2').innerText;
+                listEl.appendChild(span);
+            }
+        });
+
+        // Update cards visually
+        document.querySelectorAll('.card').forEach(card => {
+            const id = card.dataset.id;
+            if (state.completedIds.includes(id)) {
+                card.style.opacity = '0.6';
+                card.querySelector('.btn-start').innerText = 'Completed';
+                card.querySelector('.btn-start').disabled = true;
+            }
+        });
+    }
+
+    function startWorkout(id) {
+        const card = document.querySelector(`.card[data-id="${id}"]`);
+        const type = card.dataset.type;
+        const name = card.querySelector('h2').innerText;
+
+        state.currentWorkout = {
+            id: id,
+            name: name,
+            type: type,
+            mode: 'work', // 'work' or 'rest'
+            currentSet: 1,
+            totalSets: parseInt(card.dataset.sets) || 1,
+            remainingTime: type === 'strength' ? 0 : parseInt(card.dataset.duration),
+            isPaused: false,
+            restTime: parseInt(card.dataset.rest) || 0
+        };
+
+        // If strength, we don't have a "work" timer duration provided in HTML (it's reps based),
+        // so we assume the user starts the set immediately and we only track rest.
+        // However, for treadmill, we start the countdown immediately.
+
+        document.getElementById('active-panel').style.display = 'flex';
+        document.getElementById('active-name').innerText = name;
+
+        if (type === 'strength') {
+            document.getElementById('active-mode-label').innerText = `SET 1 / ${state.currentWorkout.totalSets}`;
+            document.getElementById('timer-display').innerText = "READY";
+            document.getElementById('btn-complete').innerText = "Complete Set";
+        } else {
+            document.getElementById('active-mode-label').innerText = "TREADMILL SESSION";
+            document.getElementById('btn-complete').innerText = "Finish Workout";
+            startTimer();
+        }
+    }
+
+    function startTimer() {
+        if (state.timerInterval) clearInterval(state.timerInterval);
+
+        state.timerInterval = setInterval(() => {
+            if (!state.currentWorkout.isPaused) {
+                state.currentWorkout.remainingTime--;
+                updateTimerDisplay();
+
+                if (state.currentWorkout.remainingTime <= 0) {
+                    clearInterval(state.timerInterval);
+                    handleTimerEnd();
+                }
+            }
+        }, 1000);
+    }
+
+    function updateTimerDisplay() {
+        const mins = Math.floor(Math.abs(state.currentWorkout.remainingTime) / 60);
+        const secs = Math.abs(state.currentWorkout.remainingTime) % 60;
+        const display = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        document.getElementById('timer-display').innerText = display;
+    }
+
+    function handleTimerEnd() {
+        if (state.currentWorkout.mode === 'rest') {
+            // Rest finished, move to next set or finish
+            if (state.currentWorkout.currentSet < state.currentWorkout.totalSets) {
+                state.currentWorkout.currentSet++;
+                state.currentWorkout.mode = 'work';
+                document.getElementById('active-mode-label').innerText = `SET ${state.currentWorkout.currentSet} / ${state.currentWorkout.totalSets}`;
+                document.getElementById('timer-display').innerText = "READY";
+                document.getElementById('btn-complete').innerText = "Complete Set";
+            } else {
+                finishWorkout();
+            }
+        } else if (state.currentWorkout.type === 'cardio') {
+            finishWorkout();
+        }
+    }
+
+    function handleCompleteSet() {
+        const w = state.currentWorkout;
+        if (w.type === 'strength') {
+            if (w.mode === 'work') {
+                // Start rest period
+                w.mode = 'rest';
+                w.remainingTime = w.restTime;
+                document.getElementById('active-mode-label').innerText = `RESTING...`;
+                document.getElementById('btn-complete').innerText = "Skip Rest";
+                startTimer();
+            } else {
+                // User skipped rest or finished rest manually
+                if (w.currentSet < w.totalSets) {
+                    w.currentSet++;
+                    w.mode = 'work';
+                    document.getElementById('active-mode-label').innerText = `SET ${w.currentSet} / ${w.totalSets}`;
+                    document.getElementById('timer-display').innerText = "READY";
+                    document.getElementById('btn-complete').innerText = "Complete Set";
+                } else {
+                    finishWorkout();
+                }
+            }
+        } else {
+            // Cardio finish
+            finishWorkout();
+        }
+    }
+
+    function finishWorkout() {
+        if (!state.completedIds.includes(state.currentWorkout.id)) {
+            state.completedIds.push(state.currentWorkout.id);
+            saveState();
+            updateProgressUI();
+        }
+        resetWorkout();
+        alert("Great job! Exercise completed.");
+    }
+
+    function togglePause() {
+        state.currentWorkout.isPaused = !state.currentWorkout.isPaused;
+        document.getElementById('btn-pause').classList.toggle('hidden');
+        document.getElementById('btn-resume').classList.toggle('hidden');
+    }
+
+    function resetWorkout() {
+        clearInterval(state.timerInterval);
+        state.currentWorkout = null;
+        document.getElementById('active-panel').style.display = 'none';
+        document.getElementById('btn-pause').classList.remove('hidden');
+        document.getElementById('btn-resume').classList.add('hidden');
+    }
+
+    init();
+</script>
+</body> </html>

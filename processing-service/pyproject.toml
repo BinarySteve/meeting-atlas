@@ -1,0 +1,47 @@
+[project]
+name = "meeting-transcriber-processing"
+version = "0.1.0"
+description = "Private LAN-only meeting transcription, diarization, and local LLM service"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "fastapi==0.116.1",
+  "httpx==0.28.1",
+  "pydantic-settings==2.10.1",
+  "python-multipart==0.0.20",
+  "uvicorn[standard]==0.35.0",
+]
+
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.optional-dependencies]
+diarization = [
+  "hdbscan==0.8.40",
+  "onnxruntime==1.22.1",
+  "scikit-learn==1.5.2",
+  "wespeaker @ git+https://github.com/wenet-e2e/wespeaker.git@dfa741957e5c11f477623b6e583d67d0af25ee88",
+]
+dev = ["mypy==1.17.1", "pytest==8.4.1", "ruff==0.12.9"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "S"]
+ignore = ["S603"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/meeting_processor/settings.py" = ["S104"]
+"tests/*.py" = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
