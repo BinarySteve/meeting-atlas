@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     whisper_model_name: Literal["large-v3-turbo", "large-v3"] = "large-v3-turbo"
     whisper_language: str = "auto"
     whisper_threads: int = 16
-    whisper_vad_enabled: bool = True
+    whisper_vad_enabled: bool = False
     whisper_vad_model_path: Path | None = None
 
     wespeaker_model_path: Path
@@ -35,6 +35,15 @@ class Settings(BaseSettings):
     lm_studio_url: str = "http://127.0.0.1:1234/v1"
     lm_studio_model: str
     lm_studio_timeout_seconds: int = 600
+
+    @model_validator(mode="after")
+    def require_absolute_whisper_timeline(self) -> "Settings":
+        if self.whisper_vad_enabled:
+            raise ValueError(
+                "WHISPER_VAD_ENABLED=true compacts silence and is incompatible with "
+                "synchronized transcript timestamps; set it to false"
+            )
+        return self
 
 
 @lru_cache(maxsize=1)

@@ -13,6 +13,12 @@ const segmentSchema = z.object({
 }).passthrough();
 
 const responseSchema = z.object({
+  timeline: z.object({
+    basis: z.literal("normalized_audio"),
+    unit: z.literal("milliseconds"),
+    duration_ms: z.number().positive(),
+    speech_gaps_preserved: z.literal(true),
+  }),
   raw: z.object({ transcription: z.array(segmentSchema) }).passthrough(),
 }).passthrough();
 
@@ -29,6 +35,11 @@ export type AssembledMachineSegment = {
 };
 
 export type WhisperWord = { text: string; startMs: number; endMs: number; confidence?: number; sourceSegmentId: string };
+
+export function parseTranscriptionTimeline(value: unknown): { durationMs: number } {
+  const parsed = responseSchema.parse(value);
+  return { durationMs: parsed.timeline.duration_ms };
+}
 
 export function extractWhisperWords(value: unknown): WhisperWord[] {
   const parsed = responseSchema.parse(value);

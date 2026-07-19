@@ -21,6 +21,11 @@ export async function POST(request: Request, context: RouteContext<"/api/meeting
   let job;
   try {
     job = await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Meeting" WHERE id = ${id} FOR UPDATE`;
+      const current = await tx.meeting.findUnique({ where: { id }, select: { activeTranscriptVersionId: true } });
+      if (current?.activeTranscriptVersionId !== transcript.id) throw new Error("TRANSCRIPT_NOT_ACTIVE");
+      const activeJob = await tx.processingJob.findFirst({ where: { meetingId: id, state: { in: ["QUEUED", "ACTIVE", "RETRYING", "CANCEL_REQUESTED"] } }, select: { id: true } });
+      if (activeJob) throw new Error("PROCESSING_ACTIVE");
       const created = await tx.processingJob.create({ data: { meetingId: id, kind: "SUMMARY_REGENERATION", targetTranscriptVersionId: transcript.id } });
       await writeAudit(tx, { userId, meetingId: id, action: "summary.regenerate", entityType: "ProcessingJob", entityId: created.id, metadata: { transcriptVersionId: transcript.id } });
       return created;
@@ -28,6 +33,7 @@ export async function POST(request: Request, context: RouteContext<"/api/meeting
   } catch (error) {
     const concurrent = await db.processingJob.findFirst({ where: { meetingId: id, state: { in: ["QUEUED", "ACTIVE", "RETRYING", "CANCEL_REQUESTED"] } }, orderBy: { createdAt: "desc" } });
     if (concurrent) return NextResponse.json({ error: "Processing is already running", jobId: concurrent.id, processing: await getProcessingSnapshot(id) }, { status: 409 });
+    if (error instanceof Error && error.message === "TRANSCRIPT_NOT_ACTIVE") return NextResponse.json({ error: "Activate this transcript version before regenerating its summary" }, { status: 409 });
     throw error;
   }
   try {

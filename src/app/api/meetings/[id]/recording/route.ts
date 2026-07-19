@@ -14,14 +14,16 @@ export async function GET(request: Request, context: RouteContext<"/api/meetings
   const { id } = await context.params;
   const recording = await db.recording.findFirst({ where: { meetingId: id }, orderBy: { createdAt: "asc" } });
   if (!recording) return NextResponse.json({ error: "Recording not found" }, { status: 404 });
-  const filePath = await resolveStorageKey(recording.storageKey);
+  const playback = new URL(request.url).searchParams.get("variant") === "playback";
+  if (playback && !recording.normalizedStorageKey) return NextResponse.json({ error: "Playback audio is not ready" }, { status: 404 });
+  const filePath = await resolveStorageKey(playback ? recording.normalizedStorageKey! : recording.storageKey);
   const file = await stat(filePath).catch(() => null);
   if (!file?.isFile()) return NextResponse.json({ error: "Recording file unavailable" }, { status: 404 });
   const range = request.headers.get("range");
   const headers = new Headers({
     "accept-ranges": "bytes",
     "cache-control": "private, no-store",
-    "content-type": mediaType(recording.originalFilename),
+    "content-type": playback ? "audio/wav" : mediaType(recording.originalFilename),
     "x-content-type-options": "nosniff",
   });
   if (!range) {

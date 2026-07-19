@@ -12,15 +12,15 @@ FFprobe/FFmpeg use argument arrays with no shell interpolation, bounded logs, ti
 
 ## Kubuntu processing service
 
-Authenticated FastAPI controls Vulkan/ROCm/CPU-configurable whisper.cpp, whole-file WeSpeaker diarization, and LM Studio. Current benchmark selected Vulkan whisper.cpp; diarization uses CPU. Remote request IDs allow active cancellation. Whisper subprocess cancellation kills child process. Service runs under user systemd with restart policy and offline model flags.
+Authenticated FastAPI controls Vulkan/ROCm/CPU-configurable whisper.cpp, whole-file WeSpeaker diarization, and LM Studio. Current benchmark selected Vulkan whisper.cpp; diarization uses CPU. Whisper decodes the complete normalized WAV without timeline-compacting VAD and returns an explicit normalized-audio timeline contract. The worker rejects malformed, non-monotonic, or duration-incompatible timestamps. Remote request IDs allow active cancellation. Whisper subprocess cancellation kills child process. Service runs under user systemd with restart policy and offline model flags.
 
-WeSpeaker processes complete normalized recording using local Silero VAD, speaker embeddings, UMAP/HDBSCAN clustering, and stable raw labels. It emits non-overlapping turns. Timeline alignment groups Whisper words at source-segment, sentence, pause, and duration boundaries, then assigns each natural phrase only when overlap confidence and speaker dominance pass threshold.
+WeSpeaker processes the complete normalized recording using its local Silero VAD, speaker embeddings, UMAP/HDBSCAN clustering, and artifact-scoped raw labels. Its VAD identifies speech for diarization but does not rewrite the shared recording timeline. It emits non-overlapping turns. Alignment scores diarization overlap per Whisper word, applies conservative nearest-turn fallback and short-flicker smoothing, then groups words at confident speaker handoffs, source boundaries, pauses, duration limits, and punctuation. A phrase receives a speaker only when confidence-weighted evidence is decisive.
 
 ## Durable pipeline
 
 Stages: upload validation → inspection → normalization → transcription → diarization → alignment → assembly → hierarchical summarization → structured extraction → completion.
 
-Every attempt stores state, timestamps, error, result, attempt number, heartbeat, and unique idempotency key. Completed-stage guard resumes first incomplete stage. BullMQ retries exponentially and recovers stalled jobs. Cancellation polling reaches active local subprocesses and authenticated remote requests. Summary regeneration creates `SUMMARY_REGENERATION` job targeting transcript version, so audio stages never rerun.
+Every attempt stores state, timestamps, error, result, attempt number, heartbeat, and unique idempotency key. Completed-stage guard resumes first incomplete stage. BullMQ retries exponentially and recovers stalled jobs. Cancellation polling reaches active local subprocesses and authenticated remote requests. Summary regeneration creates a `SUMMARY_REGENERATION` job targeting one transcript version, so audio stages never rerun. Transcript reprocessing creates a `TRANSCRIPT_REPROCESS` job, reuses a duration-valid normalized WAV and eligible immutable diarization artifact when possible, writes new raw/output artifacts, then atomically activates the new machine transcript and completed summary.
 
 PostgreSQL is the authoritative processing-status store, including durable within-stage progress. A partial unique index permits only one active job per meeting, while stable BullMQ job IDs deduplicate same-run enqueue attempts. Workers publish lightweight Redis invalidations; authenticated server-sent events re-read PostgreSQL and push snapshots to every meeting tab. The UI disables conflicting actions immediately, shows queued/running/retrying/completed/failed states, and refreshes meeting artifacts once when a run becomes terminal.
 
@@ -39,9 +39,9 @@ The client installs the stream once for the meeting workspace, independent of th
 
 ## Versioning and evidence
 
-Raw transcription and diarization remain immutable artifacts. Editing creates new transcript version with parent pointer. Text correction, speaker reassignment, split, merge, and summary exclusion never overwrite machine output. Speaker rename updates relational display name and alias history without touching raw diarization.
+Raw transcription and diarization remain immutable artifacts. Editing and reprocessing each create a new transcript version with a parent pointer. Text correction, speaker reassignment, split, merge, summary exclusion, and reprocessing never overwrite earlier machine or manual output. A manually active transcript cannot be reprocessed; the owner must explicitly activate a machine version first. Meeting-row locks serialize job creation, transcript edits, summary restore, and transcript activation so a late pipeline completion cannot silently displace concurrent manual work. Speaker rename updates relational display name and alias history without touching raw diarization.
 
-Each summary targets one transcript version. Section summaries retain transcript IDs/timestamps. Final decisions, action items, open questions, and claims must pass Zod validation and reference known segment IDs. Summary restore changes active pointer; older summaries/items remain stored.
+`Meeting.activeTranscriptVersionId` is the authoritative presentation/export pointer. Each summary targets one transcript version. Section summaries retain transcript IDs/timestamps. Final decisions, action items, open questions, and claims must pass Zod validation and reference known segment IDs. Summary restore activates both its summary and transcript; explicit transcript activation selects its newest completed summary when available. Older versions, summaries, and items remain stored.
 
 ## Search, exports, retention, backups
 

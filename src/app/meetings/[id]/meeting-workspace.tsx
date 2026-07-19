@@ -1,9 +1,10 @@
 "use client";
 
-import type { ItemStatus } from "@prisma/client";
+import type { ItemStatus, TranscriptSource } from "@prisma/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { groupTranscriptSegments, type TranscriptGroup } from "@/lib/transcript-display";
+import { findActiveTimedSegment } from "@/lib/playback-sync";
 import type { ProcessingSnapshot } from "@/lib/processing-status";
 import { MeetingDeleteButton } from "@/app/meeting-delete-button";
 
@@ -24,6 +25,8 @@ export function MeetingWorkspace(props: {
   initialProcessing: ProcessingSnapshot;
   initialView: string;
   transcript?: { id: string; version: number; segments: Segment[] };
+  activeTranscriptSource: TranscriptSource | null;
+  transcriptVersions: Array<{ id: string; version: number; source: TranscriptSource; createdAtLabel: string; active: boolean }>;
   speakers: Speaker[];
   summaries: Summary[];
   activeSummaryId: string | null;
@@ -48,6 +51,7 @@ export function MeetingWorkspace(props: {
   const [processing, setProcessing] = useState(props.initialProcessing);
   const [streamConnected, setStreamConnected] = useState(false);
   const [summarySubmitting, setSummarySubmitting] = useState(false);
+  const [reprocessSubmitting, setReprocessSubmitting] = useState(false);
   const [processingActionBusy, setProcessingActionBusy] = useState(false);
   const [speakerEditorOpen, setSpeakerEditorOpen] = useState(false);
   const requestedView = searchParams.get("view") ?? props.initialView;
@@ -62,14 +66,24 @@ export function MeetingWorkspace(props: {
     : segments.map((segment) => ({ id: segment.id, startMs: segment.startMs, endMs: segment.endMs, text: segment.text, speakerName: segment.speakerName, partiallyUnassigned: false, segments: [segment] })), [compactTranscript, segments]);
   const visibleGroups = useMemo(() => { const query = transcriptQuery.trim().toLocaleLowerCase(); return query ? transcriptGroups.filter((group) => group.text.toLocaleLowerCase().includes(query) || group.speakerName.toLocaleLowerCase().includes(query)) : transcriptGroups; }, [transcriptGroups, transcriptQuery]);
   const timelineGroups = useMemo(() => transcriptGroups.filter((_, index) => index === 0 || index % Math.max(1, Math.ceil(transcriptGroups.length / 7)) === 0).slice(0, 8), [transcriptGroups]);
-  const activeSegment = segments.find((segment) => currentMs >= segment.startMs && currentMs < segment.endMs);
+  const activeSegment = findActiveTimedSegment(segments, currentMs);
   const activeGroup = activeSegment ? transcriptGroups.find((group) => group.segments.some((segment) => segment.id === activeSegment.id)) : undefined;
   const activeSummary = props.summaries.find((summary) => summary.id === props.activeSummaryId) ?? props.summaries[0];
 
   useEffect(() => {
     if (!followTranscript || !activeGroup || audio.current?.paused) return;
-    document.getElementById(`transcript-group-${activeGroup.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document.getElementById(`transcript-group-${activeGroup.id}`)?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "center" });
   }, [activeGroup, followTranscript]);
+
+  useEffect(() => {
+    if (!playing) return;
+    const timer = window.setInterval(() => {
+      const node = audio.current;
+      if (node) setCurrentMs(node.currentTime * 1000);
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [playing]);
 
   useEffect(() => {
     const events = new EventSource(`/api/meetings/${props.meetingId}/processing`);
@@ -148,6 +162,18 @@ export function MeetingWorkspace(props: {
     } finally { setProcessingActionBusy(false); }
   }
 
+  async function reprocessTranscript() {
+    if (!props.transcript || props.activeTranscriptSource === "MANUAL" || processing.active || reprocessSubmitting) return;
+    setReprocessSubmitting(true);
+    setMessage("Starting transcript and speaker reprocessing…");
+    try {
+      const response = await fetch(`/api/meetings/${props.meetingId}/transcript/reprocess`, { method: "POST" });
+      const result = await response.json() as { error?: string; processing?: ProcessingSnapshot };
+      if (result.processing) { setProcessing(result.processing); lastJobState.current = result.processing.job?.state; }
+      setMessage(response.ok ? "Transcript reprocessing queued" : result.error ?? "Could not start reprocessing");
+    } finally { setReprocessSubmitting(false); }
+  }
+
   function changeView(next: View) {
     if (next === "summary" || next === "actions") setInsightTab(next);
     const query = new URLSearchParams(searchParams.toString());
@@ -191,7 +217,7 @@ export function MeetingWorkspace(props: {
     <AudioPlayer recordingUrl={props.recordingUrl} playing={playing} currentMs={currentMs} durationMs={durationMs} volume={volume} followTranscript={followTranscript} activeSpeaker={activeSegment?.speakerName} onToggle={togglePlayback} onSeek={seekPosition} onRate={changeRate} onVolume={changeVolume} onSkip={skip} onFollow={() => setFollowTranscript((value) => !value)}/>
 
     <section className={`details-panel ${view !== "details" ? "mobile-hidden" : ""}`}>
-      <div className="details-grid"><div><p className="panel-label">Processing</p><h2>Pipeline details</h2><PipelineDetails processing={processing} onRequest={request}/></div><div><p className="panel-label">People</p><h2>Speakers</h2><div className="speaker-grid">{props.speakers.map((speaker) => <form key={speaker.id} onSubmit={(event) => { event.preventDefault(); void request(`/api/meetings/${props.meetingId}/speakers/${speaker.id}`, "PATCH", { displayName: String(new FormData(event.currentTarget).get("name") ?? "") }); }}><label htmlFor={`speaker-${speaker.id}`}>Speaker name</label><input id={`speaker-${speaker.id}`} name="name" defaultValue={speaker.displayName} maxLength={100} required/><button>Rename</button></form>)}</div></div><div><p className="panel-label">Files</p><h2>Export</h2><div className="button-row">{["txt", "md", "json", "srt", "vtt"].map((format) => <a className="button" href={`/api/meetings/${props.meetingId}/exports?format=${format}`} key={format}>{format.toUpperCase()}</a>)}</div></div><div><p className="panel-label">Privacy</p><h2>Retention</h2><form className="retention-form" onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); void request(`/api/meetings/${props.meetingId}`, "PATCH", { retentionUntil: String(data.get("until") || "") || null, protectedFromRetention: data.get("protected") === "on" }); }}><label>Delete after<input name="until" type="date" defaultValue={props.retention.until ?? ""}/></label><label className="checkbox"><input name="protected" type="checkbox" defaultChecked={props.retention.protected}/> Protect from automatic retention</label><button>Save retention</button></form><MeetingDeleteButton meetingId={props.meetingId} meetingTitle={props.meetingTitle}/></div></div>
+      <div className="details-grid"><div><p className="panel-label">Processing</p><h2>Pipeline details</h2><PipelineDetails processing={processing} onRequest={request}/><div className="reprocess-controls"><button disabled={!props.transcript || props.activeTranscriptSource === "MANUAL" || processing.active || reprocessSubmitting} onClick={() => void reprocessTranscript()}>{reprocessSubmitting ? "Starting…" : "Reprocess transcript & speakers"}</button><p>Creates corrected timing, speaker assignments, summary, and outcomes without overwriting prior versions.</p>{props.activeTranscriptSource === "MANUAL" && <small>Select a machine transcript version below before reprocessing; manual work is protected.</small>}</div><details className="version-history transcript-version-history"><summary>Transcript versions</summary>{props.transcriptVersions.map((version) => <div key={version.id}><span>Version {version.version} · {version.source.toLowerCase()} · {version.createdAtLabel}</span>{version.active ? <strong>Active</strong> : <button disabled={processing.active} onClick={() => void request(`/api/meetings/${props.meetingId}/transcript-versions/${version.id}/activate`, "POST")}>Activate</button>}</div>)}</details></div><div><p className="panel-label">People</p><h2>Speakers</h2><div className="speaker-grid">{props.speakers.map((speaker) => <form key={speaker.id} onSubmit={(event) => { event.preventDefault(); void request(`/api/meetings/${props.meetingId}/speakers/${speaker.id}`, "PATCH", { displayName: String(new FormData(event.currentTarget).get("name") ?? "") }); }}><label htmlFor={`speaker-${speaker.id}`}>Speaker name</label><input id={`speaker-${speaker.id}`} name="name" defaultValue={speaker.displayName} maxLength={100} required/><button>Rename</button></form>)}</div></div><div><p className="panel-label">Files</p><h2>Export</h2><div className="button-row">{["txt", "md", "json", "srt", "vtt"].map((format) => <a className="button" href={`/api/meetings/${props.meetingId}/exports?format=${format}`} key={format}>{format.toUpperCase()}</a>)}</div></div><div><p className="panel-label">Privacy</p><h2>Retention</h2><form className="retention-form" onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); void request(`/api/meetings/${props.meetingId}`, "PATCH", { retentionUntil: String(data.get("until") || "") || null, protectedFromRetention: data.get("protected") === "on" }); }}><label>Delete after<input name="until" type="date" defaultValue={props.retention.until ?? ""}/></label><label className="checkbox"><input name="protected" type="checkbox" defaultChecked={props.retention.protected}/> Protect from automatic retention</label><button>Save retention</button></form><MeetingDeleteButton meetingId={props.meetingId} meetingTitle={props.meetingTitle}/></div></div>
       <details className="audit-details"><summary>Audit history</summary>{props.audits.length ? <ol className="audit-list">{props.audits.map((event) => <li key={event.id}><time>{event.createdAtLabel}</time><strong>{event.action}</strong><span>{event.entityType}</span></li>)}</ol> : <p className="empty">No audited changes yet.</p>}</details>
     </section>
     <p role="status" className="sticky-status">{message}</p>
@@ -261,7 +287,7 @@ function Evidence({ ids, segments, onSeek }: { ids: string[]; segments: Map<stri
 }
 
 function processingTitle(processing: ProcessingSnapshot) { const job = processing.job; if (!job) return "Not processing"; if (job.state === "QUEUED") return "Queued for local processing"; if (job.state === "FAILED") return "Processing failed"; if (job.state === "CANCELLED") return "Processing cancelled"; if (job.state === "CANCEL_REQUESTED") return "Stopping processing"; return job.activeStage ? humanize(job.activeStage) : "Processing meeting"; }
-function processingDescription(processing: ProcessingSnapshot) { const job = processing.job; if (!job) return "No pipeline run"; if (job.state === "QUEUED") return "Waiting for local worker capacity."; if (job.state === "FAILED") return "Review the error, then retry completed checkpoints safely."; return `Attempt ${Math.max(1, job.attempt)} is running locally.`; }
+function processingDescription(processing: ProcessingSnapshot) { const job = processing.job; if (!job) return "No pipeline run"; if (job.state === "QUEUED") return job.kind === "TRANSCRIPT_REPROCESS" ? "Waiting to correct transcript timing and speaker assignments." : "Waiting for local worker capacity."; if (job.state === "FAILED") return "Review the error, then retry completed checkpoints safely."; return `Attempt ${Math.max(1, job.attempt)} is running locally.`; }
 function humanize(value: string) { return value.replaceAll("_", " ").toLowerCase(); }
 function formatMs(value: number) { const seconds = Math.floor((Number.isFinite(value) ? value : 0) / 1000); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`; }
 function truncate(value: string, length: number) { return value.length > length ? `${value.slice(0, length).trim()}…` : value; }

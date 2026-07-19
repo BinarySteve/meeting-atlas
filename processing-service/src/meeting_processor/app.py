@@ -33,9 +33,7 @@ def health(_: None = Depends(require_service_auth)) -> dict[str, Any]:
     components = {
         "whisper_executable": settings.whisper_executable.is_file(),
         "whisper_model": settings.whisper_model_path.is_file(),
-        "vad_model": bool(
-            settings.whisper_vad_model_path and settings.whisper_vad_model_path.is_file()
-        ),
+        "whisper_absolute_timeline": not settings.whisper_vad_enabled,
         "diarization_model": all(
             (settings.wespeaker_model_path / filename).is_file()
             for filename in ("avg_model.pt", "config.yaml")
@@ -46,6 +44,7 @@ def health(_: None = Depends(require_service_auth)) -> dict[str, Any]:
         "components": components,
         "whisper_backend": settings.whisper_backend,
         "whisper_model_name": settings.whisper_model_name,
+        "whisper_vad_enabled": settings.whisper_vad_enabled,
         "diarization_backend": "wespeaker",
         "diarization_device": settings.wespeaker_device,
         "lm_studio_model": settings.lm_studio_model,

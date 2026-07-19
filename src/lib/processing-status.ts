@@ -1,6 +1,6 @@
 import type { JobKind, JobState, MeetingState, StageState } from "@prisma/client";
 import { db } from "./db";
-import { PIPELINE_STAGES, SUMMARY_PIPELINE_STAGES } from "./pipeline-stages";
+import { PIPELINE_STAGES, REPROCESS_PIPELINE_STAGES, SUMMARY_PIPELINE_STAGES } from "./pipeline-stages";
 import { redis } from "./redis";
 
 export const ACTIVE_JOB_STATES: JobState[] = ["QUEUED", "ACTIVE", "RETRYING", "CANCEL_REQUESTED"];
@@ -52,7 +52,9 @@ export async function getProcessingSnapshot(meetingId: string): Promise<Processi
   if (!meeting) return null;
   const job = meeting.jobs[0];
   if (!job) return { meetingId, meetingState: meeting.state, meetingStage: meeting.activeStage, active: false, job: null };
-  const expected = job.kind === "SUMMARY_REGENERATION" ? [...SUMMARY_PIPELINE_STAGES] : [...PIPELINE_STAGES];
+  const expected = job.kind === "SUMMARY_REGENERATION"
+    ? [...SUMMARY_PIPELINE_STAGES]
+    : job.kind === "TRANSCRIPT_REPROCESS" ? [...REPROCESS_PIPELINE_STAGES] : [...PIPELINE_STAGES];
   const latest = new Map(job.stages.map((stage) => [stage.stage, stage]));
   const stages: ProcessingStageSnapshot[] = expected.map((name) => { const stage = latest.get(name); return stage ? { id: stage.id, stage: name, state: stage.state, attempt: stage.attempt, progressCurrent: stage.progressCurrent, progressTotal: stage.progressTotal, progressMessage: stage.progressMessage, startedAt: stage.startedAt?.toISOString() ?? null, completedAt: stage.completedAt?.toISOString() ?? null, error: stage.errorMessage } : { id: null, stage: name, state: "PENDING", attempt: 0, progressCurrent: null, progressTotal: null, progressMessage: null, startedAt: null, completedAt: null, error: null }; });
   const completedStages = stages.filter((stage) => stage.state === "COMPLETED").length;

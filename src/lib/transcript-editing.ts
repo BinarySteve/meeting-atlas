@@ -83,6 +83,13 @@ export async function createEditedTranscriptVersion(input: {
   edit: TranscriptEdit;
 }): Promise<{ id: string; version: number }> {
   return db.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Meeting" WHERE id = ${input.meetingId} FOR UPDATE`;
+    if (!locked.length) throw new Error("Meeting not found");
+    const activeJob = await tx.processingJob.findFirst({
+      where: { meetingId: input.meetingId, state: { in: ["QUEUED", "ACTIVE", "RETRYING", "CANCEL_REQUESTED"] } },
+      select: { id: true },
+    });
+    if (activeJob) throw new Error("Wait for active processing to finish before editing the transcript");
     const base = await tx.transcriptVersion.findFirst({
       where: { id: input.baseVersionId, meetingId: input.meetingId },
       include: { segments: { orderBy: { ordinal: "asc" } } },
@@ -116,7 +123,7 @@ export async function createEditedTranscriptVersion(input: {
     });
     await tx.meeting.update({
       where: { id: input.meetingId },
-      data: { activeSummaryVersionId: null },
+      data: { activeTranscriptVersionId: version.id, activeSummaryVersionId: null },
     });
     await writeAudit(tx, {
       userId: input.userId,

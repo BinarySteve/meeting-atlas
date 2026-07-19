@@ -19,6 +19,7 @@ LAN-only, local-first meeting transcription for Windows + Kubuntu. Browser talks
 | Timestamp alignment and neutral speakers | Implemented |
 | Audio-synchronized transcript playback | Implemented |
 | Auditable transcript edits and speaker rename | Implemented |
+| Auditable transcript/speaker reprocessing and version activation | Implemented |
 | Hierarchical LM Studio summaries and structured evidence | Implemented |
 | Summary regeneration/history/restore | Implemented |
 | Action items, decisions, open questions | Implemented |
@@ -29,13 +30,15 @@ LAN-only, local-first meeting transcription for Windows + Kubuntu. Browser talks
 
 Known limitation: WeSpeaker backend does not detect simultaneous overlapping speakers. Raw artifacts declare this. Low-confidence alignment stays `Unassigned`; system never invents speaker identity.
 
-The meeting workspace uses a sticky audio player, optional transcript following, a compact sentence-oriented transcript with a source-segment editing view, collapsed completed processing details, and timestamp evidence links. A live status card remains visible in every workspace view and reports queued, running, retrying, cancellation, completion, and failure states. Long summary runs also report durable section-level progress. New alignment runs group Whisper words into natural phrases before evaluating diarization overlap; ambiguous phrases remain unassigned.
+The meeting workspace uses the normalized pipeline WAV for playback, so Whisper, WeSpeaker, evidence links, seeking, and transcript following share one absolute millisecond timeline. Whisper VAD is deliberately disabled because its silence-compacted timestamps cannot synchronize with the recording. Word-level diarization evidence is smoothed and then grouped into natural phrases; ambiguous words and phrases remain `Unassigned`.
+
+A live status card remains visible in every workspace view and reports queued, running, retrying, cancellation, completion, and failure states. Long runs also report durable stage progress. Transcript reprocessing creates a new machine version and matching summary without overwriting prior raw artifacts or versions. Manual transcript versions are protected from accidental reprocessing.
 
 ## Application flow
 
 The mobile-first library puts search, active processing, and recent meetings first. Advanced filters open separately and remain encoded in the URL. New recordings use `/meetings/new`, with filename/title defaults, recording date, drag-and-drop or native picker, byte progress, cancellation, guarded submission, and a clear processing transition.
 
-Meeting pages expose direct-linkable `?view=overview`, `?view=transcript`, and `?view=outcomes` views. The processing card is shared across all three views. Overview contains detailed stage history, speakers, summary history, exports, and retention. Transcript contains playback, search, following, timestamp seeking, versioned source edits, and a regeneration button that gates immediately while any meeting job is active. Outcomes contains action items, decisions, questions, and seekable evidence.
+Meeting pages expose direct-linkable `?view=overview`, `?view=transcript`, and `?view=outcomes` views. The processing card is shared across all three views. Overview contains detailed stage history, transcript-version activation, speaker-aware transcript reprocessing, summary history, exports, and retention. Transcript contains playback, search, following, timestamp seeking, versioned source edits, and a summary-regeneration button. Processing mutations gate immediately while any meeting job is active. Outcomes contains action items, decisions, questions, and seekable evidence.
 
 Processing status is pushed through an authenticated server-sent event stream. Redis carries lightweight change notifications; each notification causes the server to read the authoritative PostgreSQL snapshot before sending it to the browser. A periodic database reconciliation keeps the UI correct if a Redis notification is missed. When a job reaches a terminal state, the page refreshes its summary and outcome artifacts once without repeatedly reloading the full transcript during processing.
 
@@ -49,7 +52,7 @@ Browser → Next.js streaming upload → immutable filesystem object → Postgre
 
 Worker state change → durable PostgreSQL job/stage snapshot → Redis invalidation → authenticated Next.js SSE snapshot → live meeting UI. PostgreSQL remains authoritative; Redis accelerates delivery but is not required to reconstruct status.
 
-Closing or refreshing browser does not affect processing. Completed stages and within-stage counters persist. Summary-only retries never rerun normalization, transcription, or diarization. PostgreSQL permits only one active job per meeting, and stable BullMQ IDs deduplicate concurrent enqueue attempts.
+Closing or refreshing browser does not affect processing. Completed stages and within-stage counters persist. Summary-only retries never rerun normalization, transcription, or diarization. Transcript reprocessing reuses a valid normalized WAV and eligible diarization artifact, creates new transcription/alignment/version artifacts, and switches active transcript and summary pointers only after completion. PostgreSQL permits only one active job per meeting, and stable BullMQ IDs deduplicate concurrent enqueue attempts.
 
 ## Privacy guarantees
 
@@ -103,7 +106,7 @@ docker compose config --quiet
 Invoke-RestMethod http://127.0.0.1:6982/api/health
 ```
 
-`test:e2e` generates a legally safe synthetic recording locally, exercises the live private-AI pipeline, authenticated processing event stream, durable progress, duplicate regeneration race, and UI/export endpoints, then removes its meeting and files. The regeneration race must produce exactly one accepted request and one conflict response.
+`test:e2e` generates a legally safe synthetic recording with a known eight-second silence interval, exercises the live private-AI pipeline, verifies absolute timestamp preservation, authenticated processing events, transcript reprocessing/version activation, manual-edit protection, durable progress, duplicate-run races, and UI/export endpoints, then removes its meeting and files.
 
 ## Production Windows deployment
 
@@ -129,6 +132,8 @@ There is intentionally no public forgot-password endpoint. If the recovery passw
 - Upload valid and invalid media; confirm one meeting per submission, byte progress, cancellation/error recovery, processing handoff, and preserved metadata.
 - Start summary regeneration; confirm the button disables immediately, progress updates without a page reload, a second tab follows the same run, and the new summary/outcomes appear once processing completes.
 - Attempt concurrent regeneration requests; confirm only one job starts and the other request receives an active-processing conflict with the current job snapshot.
+- Reprocess a machine transcript; confirm the action gates immediately, stage progress streams live, the original version remains unchanged, and the completed new version becomes active. Confirm a manual active version blocks reprocessing until a machine version is explicitly activated.
+- Seek across a long silence with Follow transcript enabled; confirm the highlighted segment changes only at its true audio interval and no transcript row is highlighted during the gap.
 - Exercise every search/date/state/speaker filter, meeting browser history, transcript search/seek/follow/edit, and evidence seeking.
 - Register, use, name, and revoke passkeys; verify final-passkey warning, password fallback, sign-out, and other-session revocation after security changes.
 - Install through browser UI; launch standalone; disconnect server; verify only the honest offline screen appears and Cache Storage contains no private response.

@@ -16,7 +16,8 @@ type ExportMeeting = Prisma.MeetingGetPayload<{
 }>;
 
 export function renderExport(meeting: ExportMeeting, format: ExportFormat): string {
-  const transcript = [...meeting.transcriptVersions].sort((a, b) => b.version - a.version)[0];
+  const transcript = meeting.transcriptVersions.find((version) => version.id === meeting.activeTranscriptVersionId)
+    ?? [...meeting.transcriptVersions].sort((a, b) => b.version - a.version)[0];
   const segments = transcript ? [...transcript.segments].sort((a, b) => a.ordinal - b.ordinal) : [];
   if (format === "json") return JSON.stringify(jsonSafe(meeting), null, 2);
   if (format === "srt") return segments.map((segment, index) => `${index + 1}\n${subtitleTime(segment.startMs, ",")} --> ${subtitleTime(segment.endMs, ",")}\n${segment.speaker?.displayName ?? "Unassigned"}: ${segment.text}\n`).join("\n");

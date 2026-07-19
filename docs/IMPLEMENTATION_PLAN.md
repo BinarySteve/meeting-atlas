@@ -8,6 +8,7 @@
 - Milestone 4: complete. Hierarchical LM Studio JSON summaries, validation, evidence, action items, decisions, questions, transcript versions, summary regeneration/history/restore.
 - Milestone 5: complete. PostgreSQL full-text search/filtering, five exports, audit UI, retention, active cancellation, structured logging, security/operations/backup documentation, unit and integration tests.
 - Milestone 6: complete. Authoritative processing snapshots, durable within-stage counters, Redis invalidation Pub/Sub, authenticated SSE delivery, cross-tab status UI, immediate action gating, PostgreSQL active-job uniqueness, stable BullMQ enqueue IDs, and regeneration-race E2E coverage.
+- Milestone 7: complete. Absolute normalized-audio timestamp contract, VAD-safe transcription, interval-accurate follow mode, word-level conservative speaker alignment, auditable transcript reprocessing, active transcript pointers, manual-version protection, and silence-gap/reprocessing E2E coverage.
 
 ## Decisions
 
@@ -18,6 +19,9 @@
 - Zero contact sharing: ungated WeSpeaker, offline runtime, no HF token/account.
 - User systemd selected because system-wide installation requires sudo. `loginctl enable-linger` remains optional admin step for boot-before-login.
 - Playback review uses compact sentence-oriented display groups without rewriting source transcript segments; precise source editing and evidence IDs remain available.
+- Playback, Whisper, diarization, evidence, and follow mode share the normalized WAV's absolute millisecond timeline. whisper.cpp VAD is disabled because silence compaction changes that coordinate system.
+- Speaker deduction is word-level and conservative: confident handoffs split phrases, brief isolated label flicker is smoothed, and ambiguity remains `Unassigned`. No voice identity/profile inference is performed.
+- Reprocessing creates a child machine transcript plus summary, retains immutable old versions/artifacts, and switches active pointers atomically. Manual active versions require explicit machine-version activation before reprocessing.
 - PostgreSQL owns all processing state. Redis carries queue data and ephemeral change notifications but never replaces the durable snapshot.
 - Meeting workspaces use one event stream across all tabs and refresh large server-rendered artifacts only when processing becomes terminal.
 - Duplicate prevention is layered: immediate client gating improves feedback, API checks return the current snapshot, a partial database unique index closes races, and stable BullMQ IDs deduplicate delivery.
@@ -26,5 +30,5 @@
 
 - WeSpeaker cannot identify simultaneous overlapping speakers; no assignments are invented.
 - User systemd starts with user session unless linger enabled.
-- The E2E harness exercises the authenticated HTTP UI/export surface, processing SSE, duplicate regeneration race, durable summary progress, and the complete live local-AI pipeline. Pixel-level browser automation is not included.
+- The E2E harness exercises the authenticated HTTP UI/export surface, processing SSE, duplicate job races, a known silence gap, transcript reprocessing/version activation, manual-edit protection, durable summary progress, and the complete live local-AI pipeline. Pixel-level browser automation is separate from this harness.
 - Future extensions remain voice profiles, browser recording, calendar/import integrations, mobile apps, Qdrant semantic search, email delivery.

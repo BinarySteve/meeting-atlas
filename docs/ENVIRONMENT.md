@@ -47,7 +47,8 @@ Next.js and Compose both use TCP `6982`; Compose publishes host TCP `6982` to co
 - `WHISPER_MODEL_PATH`: explicit local GGML model file.
 - `WHISPER_MODEL_NAME`: `large-v3-turbo` or `large-v3`.
 - `WHISPER_LANGUAGE`, `WHISPER_THREADS`: decoding controls.
-- `WHISPER_VAD_ENABLED`, `WHISPER_VAD_MODEL_PATH`: local VAD controls.
+- `WHISPER_VAD_ENABLED`: must remain `false`. whisper.cpp VAD compacts silence and breaks the absolute timestamps required by seeking and transcript following; startup rejects `true`.
+- `WHISPER_VAD_MODEL_PATH`: obsolete for transcription and intentionally omitted from the example environment. WeSpeaker manages its own local speech detection independently.
 - `WESPEAKER_MODEL_PATH`: directory containing `avg_model.pt` + `config.yaml`.
 - `WESPEAKER_DEVICE`: `cpu` or ROCm PyTorch `cuda[:index]`.
 - `WESPEAKER_MIN_DURATION`, `WESPEAKER_WINDOW_SECONDS`, `WESPEAKER_PERIOD_SECONDS`, `WESPEAKER_BATCH_SIZE`: diarization tuning.

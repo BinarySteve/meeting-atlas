@@ -29,6 +29,7 @@ enum JobState {
 enum JobKind {
   AUDIO_PIPELINE
   SUMMARY_REGENERATION
+  TRANSCRIPT_REPROCESS
 }
 
 enum StageState {
@@ -102,15 +103,15 @@ model WebAuthnChallenge {
 }
 
 model Session {
-  id        String    @id
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  authMethod String   @default("UNKNOWN")
+  id          String    @id
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  authMethod  String    @default("UNKNOWN")
   deviceLabel String?
-  createdAt DateTime  @default(now())
-  lastSeenAt DateTime @default(now())
-  expiresAt DateTime
-  revokedAt DateTime?
+  createdAt   DateTime  @default(now())
+  lastSeenAt  DateTime  @default(now())
+  expiresAt   DateTime
+  revokedAt   DateTime?
 
   @@index([userId, expiresAt])
   @@index([userId, revokedAt, expiresAt])
@@ -125,26 +126,28 @@ model AuthRateLimit {
 }
 
 model Meeting {
-  id                     String              @id @default(cuid())
-  title                  String
-  recordingDate          DateTime?
-  state                  MeetingState        @default(UPLOADING)
-  activeStage            String?
-  activeSummaryVersionId String?
-  retentionUntil         DateTime?
-  protectedFromRetention Boolean             @default(false)
-  createdAt              DateTime            @default(now())
-  updatedAt              DateTime            @updatedAt
-  recordings             Recording[]
-  jobs                   ProcessingJob[]
-  speakers               Speaker[]
-  transcriptVersions     TranscriptVersion[]
-  summaries              SummaryVersion[]
-  actionItems            ActionItem[]
-  decisions              Decision[]
-  openQuestions          OpenQuestion[]
-  exports                Export[]
-  audits                 AuditEvent[]
+  id                        String              @id @default(cuid())
+  title                     String
+  recordingDate             DateTime?
+  state                     MeetingState        @default(UPLOADING)
+  activeStage               String?
+  activeSummaryVersionId    String?
+  activeTranscriptVersionId String?             @unique
+  retentionUntil            DateTime?
+  protectedFromRetention    Boolean             @default(false)
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+  recordings                Recording[]
+  jobs                      ProcessingJob[]
+  speakers                  Speaker[]
+  transcriptVersions        TranscriptVersion[] @relation("MeetingTranscriptVersions")
+  activeTranscriptVersion   TranscriptVersion?  @relation("ActiveTranscriptVersion", fields: [activeTranscriptVersionId], references: [id], onDelete: SetNull)
+  summaries                 SummaryVersion[]
+  actionItems               ActionItem[]
+  decisions                 Decision[]
+  openQuestions             OpenQuestion[]
+  exports                   Export[]
+  audits                    AuditEvent[]
 
   @@index([state, createdAt])
   @@index([retentionUntil, protectedFromRetention])
@@ -233,15 +236,16 @@ model SpeakerAlias {
 }
 
 model TranscriptVersion {
-  id        String              @id @default(cuid())
-  meetingId String
-  meeting   Meeting             @relation(fields: [meetingId], references: [id], onDelete: Cascade)
-  version   Int
-  source    TranscriptSource
-  parentId  String?
-  createdAt DateTime            @default(now())
-  segments  TranscriptSegment[]
-  summaries SummaryVersion[]
+  id               String              @id @default(cuid())
+  meetingId        String
+  meeting          Meeting             @relation("MeetingTranscriptVersions", fields: [meetingId], references: [id], onDelete: Cascade)
+  activeForMeeting Meeting?            @relation("ActiveTranscriptVersion")
+  version          Int
+  source           TranscriptSource
+  parentId         String?
+  createdAt        DateTime            @default(now())
+  segments         TranscriptSegment[]
+  summaries        SummaryVersion[]
 
   @@unique([meetingId, version])
 }

@@ -28,7 +28,7 @@ sudo loginctl enable-linger kubuntiai
 
 ## Whisper backend benchmark
 
-Build both backends, stop other GPU work, benchmark same normalized fixture/model several times, and compare wall time plus transcript output:
+Build both backends, stop other GPU work, benchmark the same normalized fixture/model several times, and compare wall time plus full-timeline transcript output. The benchmark intentionally omits whisper.cpp VAD so timings match production playback semantics:
 
 ```bash
 bash scripts/build-whisper-backends.sh
@@ -43,7 +43,7 @@ Set `WHISPER_BACKEND`, `WHISPER_EXECUTABLE`, restart service, then verify `/heal
 Invoke-RestMethod http://127.0.0.1:6982/api/health
 ```
 
-Expected components: database, Redis, worker heartbeat, FFmpeg, FFprobe, LM Studio, processing service. FastAPI `/health` requires bearer credential and reports Whisper executable/model/VAD, diarization model/backend/device.
+Expected components: database, Redis, worker heartbeat, FFmpeg, FFprobe, LM Studio, processing service. FastAPI `/health` requires bearer credential and reports Whisper executable/model, absolute-timeline readiness, VAD setting, and diarization model/backend/device. `whisper_vad_enabled` must report false; WeSpeaker speech detection remains independent.
 
 ## Pipeline status operations
 
@@ -57,13 +57,14 @@ docker compose run --rm web npm run db:deploy
 docker compose up -d
 ```
 
-The migration adds durable stage progress columns and a partial unique index allowing one active job per meeting. Deployment will fail instead of silently choosing a winner if legacy data contains duplicate active jobs; investigate and resolve those rows before retrying the migration.
+Migrations add durable stage progress, the one-active-job partial unique index, the transcript-reprocess job kind, and `Meeting.activeTranscriptVersionId`. Existing meetings are backfilled to their newest transcript version. Deployment will fail instead of silently choosing a winner if legacy data violates a new uniqueness rule; investigate those rows before retrying.
 
 Normal live-status checks:
 
 - The meeting card should move through queued/running/retrying/terminal states without manual refresh.
 - Browser developer tools should show one authenticated `text/event-stream` request per open meeting workspace.
 - A second regeneration attempt should be disabled client-side; a raced request should receive HTTP `409` with the existing processing snapshot.
+- Transcript reprocessing should stream transcription/diarization/alignment/summary progress, leave old versions immutable, and activate its new transcript/summary only at completion.
 - Worker logs, job heartbeat, and stage progress should advance together during long summary runs.
 
 ## Backup
@@ -106,6 +107,8 @@ npm run retention:run
 - Status says reconnecting: verify the owner session, reverse-proxy SSE buffering/timeouts, app-to-Redis connectivity, and the `/api/meetings/{id}/processing` response. Processing itself continues independently.
 - UI status is delayed but worker is healthy: query PostgreSQL first. Redis carries invalidations only; restarting Redis must not erase job/stage truth.
 - Regeneration returns `409`: another meeting job is active. Use the returned snapshot, wait for its terminal state, or cancel it before retrying.
+- Reprocessing returns `409` with a manual-protection message: activate a machine transcript version before reprocessing; manual edits are never silently replaced.
+- Follow mode drifts after silence: confirm the processing service has `WHISPER_VAD_ENABLED=false`, restart it, then reprocess the affected machine transcript. Existing compacted-timeline artifacts cannot be repaired without transcription.
 - Job remains queued after enqueue failure: inspect Redis/BullMQ availability. Updated retry routes restore a failed durable state rather than leaving a false queued state.
 - FFprobe error: file is malformed/unsupported or contains no audio stream.
 - Processing `401`: credentials differ between Windows and Kubuntu.

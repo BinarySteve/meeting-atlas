@@ -21,7 +21,7 @@ Redesign keeps those contracts and makes transcript review the visual center. De
 - `AppShell`, desktop `Sidebar`, and `MobileNavigation`
 - meeting library card, status badge, search and filter controls
 - `UploadForm`, drop zone, upload progress, processing-default disclosure
-- `MeetingWorkspace`, `TimelinePanel`, transcript search, transcript segment/editor
+- `MeetingWorkspace`, `TimelinePanel`, transcript search, transcript segment/editor, transcript version history/activation
 - insight tabs, summary, key points, action items, decisions, questions, topic placeholder
 - local processing status and pipeline details
 - synchronized audio player with seek, skip, speed, volume, and transcript follow
@@ -65,9 +65,9 @@ All fixed bottom UI includes `env(safe-area-inset-bottom)`. Reduced-motion prefe
 
 ## Transcript and processing states
 
-Current playback uses pale blue fill plus an inset blue rule. Speaker identity pairs a name with a colored dot. Timestamps are buttons and seek audio. Editing stays behind a disclosure to preserve reading focus.
+Current playback uses pale blue fill plus an inset blue rule. Speaker identity pairs a name with a colored dot. Timestamps are buttons and seek audio. Follow mode highlights only a segment whose half-open `[start, end)` interval contains the current playback position; silence gaps have no false highlight. Reduced-motion users get immediate rather than smooth follow scrolling. Editing stays behind a disclosure to preserve reading focus.
 
-Processing supports uploading, queued, active pipeline stages, retrying, cancellation requested, completed, failed, and cancelled. Status uses text plus a marker/spinner and progress, never color alone. Complete meetings omit the transient processing banner.
+Processing supports uploading, queued, active pipeline stages, retrying, cancellation requested, completed, failed, and cancelled. Status uses text plus a marker/spinner and progress, never color alone. All processing controls adopt local submitting state immediately and remain disabled while the PostgreSQL/SSE snapshot is active. Transcript Details exposes machine-version reprocessing and compact version history; manual versions show why reprocessing is protected and allow explicit activation of an older machine version. Complete meetings omit the transient processing banner.
 
 ## Accessibility
 

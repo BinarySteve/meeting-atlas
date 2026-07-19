@@ -17,15 +17,18 @@ export default async function MeetingPage({ params, searchParams }: { params: Pr
     include: {
       recordings: { orderBy: { createdAt: "asc" } },
       speakers: { orderBy: { displayName: "asc" } },
-      transcriptVersions: { include: { segments: { include: { speaker: true }, orderBy: { ordinal: "asc" } } }, orderBy: { version: "desc" }, take: 1 },
+      activeTranscriptVersion: { include: { segments: { include: { speaker: true }, orderBy: { ordinal: "asc" } } } },
+      transcriptVersions: { select: { id: true, version: true, source: true, createdAt: true }, orderBy: { version: "desc" } },
       summaries: { where: { status: "COMPLETED" }, include: { transcriptVersion: { select: { version: true } } }, orderBy: { version: "desc" } },
       audits: { orderBy: { createdAt: "desc" }, take: 50 },
     },
   });
   if (!meeting) notFound();
   const processing = await getProcessingSnapshot(id);
-  const transcript = meeting.transcriptVersions[0];
-  const activeSummary = meeting.summaries.find((summary) => summary.id === meeting.activeSummaryVersionId) ?? meeting.summaries[0];
+  const transcript = meeting.activeTranscriptVersion ?? await db.transcriptVersion.findFirst({ where: { meetingId: id }, include: { segments: { include: { speaker: true }, orderBy: { ordinal: "asc" } } }, orderBy: { version: "desc" } });
+  const activeSummary = meeting.summaries.find((summary) => summary.id === meeting.activeSummaryVersionId) ?? meeting.summaries.find((summary) => summary.transcriptVersionId === transcript?.id);
+  const activeSpeakerIds = new Set(transcript?.segments.flatMap((segment) => segment.speakerId ? [segment.speakerId] : []) ?? []);
+  const activeSpeakers = meeting.speakers.filter((speaker) => activeSpeakerIds.has(speaker.id));
   const [actions, decisions, questions] = activeSummary ? await Promise.all([
     db.actionItem.findMany({ where: { meetingId: id, OR: [{ summaryVersionId: activeSummary.id }, { summaryVersionId: null }] }, orderBy: { id: "asc" } }),
     db.decision.findMany({ where: { meetingId: id, OR: [{ summaryVersionId: activeSummary.id }, { summaryVersionId: null }] }, orderBy: { id: "asc" } }),
@@ -37,18 +40,20 @@ export default async function MeetingPage({ params, searchParams }: { params: Pr
   return <main className="meeting-page">
     <Link className="back-link" href="/">← Meetings</Link>
     <header className="meeting-detail-header">
-      <div><p className="eyebrow">Meeting workspace</p><h1>{meeting.title}</h1><div className="meeting-detail-meta"><time>{meetingDate.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</time><span>{meetingDate.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span><span>{duration}</span><span>{meeting.speakers.length} {meeting.speakers.length === 1 ? "speaker" : "speakers"}</span><span className={`status-badge status-${meeting.state.toLowerCase()}`}><span aria-hidden="true"/>{humanize(meeting.state)}</span></div></div>
+      <div><p className="eyebrow">Meeting workspace</p><h1>{meeting.title}</h1><div className="meeting-detail-meta"><time>{meetingDate.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</time><span>{meetingDate.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span><span>{duration}</span><span>{activeSpeakers.length} {activeSpeakers.length === 1 ? "speaker" : "speakers"}</span><span className={`status-badge status-${meeting.state.toLowerCase()}`}><span aria-hidden="true"/>{humanize(meeting.state)}</span></div></div>
       <div className="meeting-detail-actions"><a className="button secondary" href={`/api/meetings/${meeting.id}/exports?format=md`}>Export</a><Link className="button tertiary" href={`?view=details`}>Details</Link></div>
     </header>
     <MeetingWorkspace
       meetingId={meeting.id}
       meetingTitle={meeting.title}
-      recordingUrl={recording ? `/api/meetings/${meeting.id}/recording` : undefined}
+      recordingUrl={recording ? `/api/meetings/${meeting.id}/recording${recording.normalizedStorageKey ? "?variant=playback" : ""}` : undefined}
       recordingName={recording?.originalFilename ?? null}
       initialProcessing={processing!}
       initialView={view}
       transcript={transcript ? { id: transcript.id, version: transcript.version, segments: transcript.segments.map((segment) => ({ id: segment.id, startMs: Number(segment.startMs), endMs: Number(segment.endMs), text: segment.text, speakerId: segment.speakerId, speakerName: segment.speaker?.displayName ?? "Unassigned", excluded: segment.excludedFromSummary })) } : undefined}
-      speakers={meeting.speakers.map((speaker) => ({ id: speaker.id, displayName: speaker.displayName }))}
+      activeTranscriptSource={transcript?.source ?? null}
+      transcriptVersions={meeting.transcriptVersions.map((version) => ({ id: version.id, version: version.version, source: version.source, createdAtLabel: version.createdAt.toLocaleString(), active: version.id === transcript?.id }))}
+      speakers={activeSpeakers.map((speaker) => ({ id: speaker.id, displayName: speaker.displayName }))}
       summaries={meeting.summaries.map((summary) => { const output = meetingOutputSchema.safeParse(summary.content).data; return { id: summary.id, version: summary.version, transcriptVersion: summary.transcriptVersion.version, summary: output?.summary ?? "Structured summary unavailable", keyPoints: output?.importantClaims.map((claim) => ({ text: claim.text, evidence: claim.evidenceSegmentIds })) ?? [] }; })}
       activeSummaryId={activeSummary?.id ?? null}
       actions={actions.map((item) => ({ id: item.id, description: item.description, owner: item.typedOwner, dueDate: item.dueDate?.toISOString().slice(0, 10) ?? null, status: item.status, rejected: Boolean(item.rejectedAt), evidence: item.evidenceSegmentIds }))}

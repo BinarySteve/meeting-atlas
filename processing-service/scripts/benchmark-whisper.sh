@@ -9,7 +9,6 @@ fi
 AUDIO="$1"
 ROOT="${WHISPER_CPP_DIR:-$HOME/opt/whisper.cpp}"
 MODEL="${WHISPER_MODEL_PATH:-$HOME/models/whisper/ggml-large-v3-turbo.bin}"
-VAD="${WHISPER_VAD_MODEL_PATH:-$HOME/models/whisper/ggml-silero-v6.2.0.bin}"
 
 for backend in rocm vulkan; do
   cli="$ROOT/build-$backend/bin/whisper-cli"
@@ -19,6 +18,6 @@ for backend in rocm vulkan; do
   fi
   echo "=== $backend ==="
   /usr/bin/time -v "$cli" --model "$MODEL" --file "$AUDIO" \
-    --vad --vad-model "$VAD" --no-prints --output-json \
+    --suppress-nst --no-prints --output-json-full \
     --output-file "/tmp/meeting-benchmark-$backend"
 done

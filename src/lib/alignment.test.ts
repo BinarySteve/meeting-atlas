@@ -32,8 +32,30 @@ describe("speaker alignment", () => {
     const result = alignWordsToSpeakers([
       { text: " Mixed", startMs: 0, endMs: 500, sourceSegmentId: "w:0" },
       { text: " speech", startMs: 500, endMs: 1000, sourceSegmentId: "w:0" },
-    ], { turns: [{ start: 0, end: 0.5, speaker: "A" }, { start: 0.5, end: 1, speaker: "B" }] });
+    ], { turns: [{ start: 0, end: 1, speaker: "A" }, { start: 0, end: 1, speaker: "B" }] });
     expect(result[0].speakerKey).toBeUndefined();
     expect(result[0].assignmentReason).toBe("uncertain");
+  });
+
+  it("splits a sentence at a confident diarization handoff", () => {
+    const result = alignWordsToSpeakers([
+      { text: " We", startMs: 0, endMs: 500, sourceSegmentId: "w:0" },
+      { text: " agree", startMs: 500, endMs: 1_000, sourceSegmentId: "w:0" },
+      { text: " I", startMs: 1_000, endMs: 1_500, sourceSegmentId: "w:0" },
+      { text: " disagree.", startMs: 1_500, endMs: 2_000, sourceSegmentId: "w:0" },
+    ], { turns: [{ start: 0, end: 1, speaker: "A" }, { start: 1, end: 2, speaker: "B" }] });
+    expect(result).toHaveLength(2);
+    expect(result.map((segment) => segment.speakerKey)).toEqual(["A", "B"]);
+    expect(result.map((segment) => segment.text)).toEqual(["We agree", "I disagree."]);
+  });
+
+  it("does not promote a brief isolated speaker flicker", () => {
+    const result = alignWordsToSpeakers([
+      { text: " We", startMs: 0, endMs: 500, sourceSegmentId: "w:0" },
+      { text: " all", startMs: 500, endMs: 700, sourceSegmentId: "w:0" },
+      { text: " agree.", startMs: 700, endMs: 1_200, sourceSegmentId: "w:0" },
+    ], { turns: [{ start: 0, end: 0.5, speaker: "A" }, { start: 0.5, end: 0.7, speaker: "B" }, { start: 0.7, end: 1.2, speaker: "A" }] });
+    expect(result).toHaveLength(1);
+    expect(result[0].speakerKey).toBe("A");
   });
 });

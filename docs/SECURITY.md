@@ -28,6 +28,8 @@ The meeting processing SSE endpoint requires the same owner session as the meeti
 
 Client-side disabled controls are feedback, not authorization or concurrency enforcement. Mutation routes re-check the owner session and active job. PostgreSQL's partial unique index is the final one-active-job-per-meeting boundary, including concurrent requests from separate tabs or clients. Conflict responses expose only the authenticated meeting's current processing snapshot.
 
+Transcript reprocessing is owner-authenticated, bounded by the same active-job constraint, and targets only a transcript belonging to the meeting. It refuses a manually active transcript so derived machine processing cannot silently replace human work. PostgreSQL meeting-row locks serialize job creation with transcript editing and pointer restoration/activation. New raw artifacts and transcript versions are written immutably; active transcript/summary pointers change together only after successful completion.
+
 ## Enforced
 
 - Single owner; Argon2id password; signed 12-hour HTTP-only SameSite=Strict cookie with two-hour server-side idle expiry.
@@ -40,6 +42,7 @@ Client-side disabled controls are feedback, not authorization or concurrency enf
 - FFmpeg/FFprobe/whisper use argument arrays and no shell interpolation.
 - Timeouts, bounded logs, retries, cancellation, idempotency guards.
 - Authenticated processing SSE; no private artifacts in Redis Pub/Sub payloads; database-enforced active-job uniqueness.
+- Immutable transcript history, manual-version reprocessing guard, and atomic active transcript/summary activation.
 - No remote runtime assets, telemetry SDKs, cloud APIs, or automatic model downloads.
 - Secrets excluded by `.env*`; logs redact auth/password/token fields.
 

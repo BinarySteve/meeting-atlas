@@ -285,6 +285,11 @@ label { display: grid; gap: .4rem; color: var(--color-text-secondary); font-size
 .version-history { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--color-border); }
 .version-history > div { display: flex; justify-content: space-between; gap: .5rem; align-items: center; padding: .5rem 0; color: var(--color-text-muted); font-size: .76rem; }
 .version-history button { min-height: 2rem; padding: .25rem .5rem; }
+.version-history strong { color: var(--color-success); font-size: .75rem; }
+.reprocess-controls { display: grid; gap: .5rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--color-border); }
+.reprocess-controls p, .reprocess-controls small { margin: 0; color: var(--color-text-muted); font-size: .76rem; line-height: 1.45; }
+.reprocess-controls small { color: var(--color-warning); }
+.transcript-version-history > div span { min-width: 0; overflow-wrap: anywhere; }
 .action-list { display: grid; gap: .65rem; }
 .action-item { padding: .8rem; background: var(--color-surface-soft); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
 .action-check { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: .55rem; color: var(--color-text); }

@@ -48,7 +48,8 @@ export async function runSummaryPipeline(
   jobId: string,
   meetingId: string,
   transcriptVersionId: string,
-): Promise<void> {
+  options: { activate?: boolean } = {},
+): Promise<string> {
   const env = getEnv();
   await runStage(jobId, "summarization", async (stageAttemptId, signal) => {
     const transcript = await db.transcriptVersion.findFirstOrThrow({
@@ -137,10 +138,12 @@ export async function runSummaryPipeline(
         where: { id: summary.id },
         data: { status: "COMPLETED", content: content as Prisma.InputJsonValue },
       });
-      await tx.meeting.update({
-        where: { id: meetingId },
-        data: { activeSummaryVersionId: summary.id },
-      });
+      if (options.activate !== false) {
+        await tx.meeting.update({
+          where: { id: meetingId },
+          data: { activeSummaryVersionId: summary.id, activeTranscriptVersionId: transcriptVersionId },
+        });
+      }
       if (content.actionItems.length) {
         await tx.actionItem.createMany({
           data: content.actionItems.map((item) => ({
@@ -186,4 +189,10 @@ export async function runSummaryPipeline(
       openQuestionCount: content.openQuestions.length,
     };
   });
+  const completed = await db.summaryVersion.findFirstOrThrow({
+    where: { meetingId, transcriptVersionId, status: "COMPLETED" },
+    orderBy: { version: "desc" },
+    select: { id: true },
+  });
+  return completed.id;
 }
