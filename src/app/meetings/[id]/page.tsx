@@ -41,7 +41,7 @@ export default async function MeetingPage({ params, searchParams }: { params: Pr
     <Link className="back-link" href="/">← Meetings</Link>
     <header className="meeting-detail-header">
       <div><p className="eyebrow">Meeting workspace</p><h1>{meeting.title}</h1><div className="meeting-detail-meta"><time>{meetingDate.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</time><span>{meetingDate.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span><span>{duration}</span><span>{activeSpeakers.length} {activeSpeakers.length === 1 ? "speaker" : "speakers"}</span><span className={`status-badge status-${meeting.state.toLowerCase()}`}><span aria-hidden="true"/>{humanize(meeting.state)}</span></div></div>
-      <div className="meeting-detail-actions"><a className="button secondary" href={`/api/meetings/${meeting.id}/exports?format=md`}>Export</a><Link className="button tertiary" href={`?view=details`}>Details</Link></div>
+      <div className="meeting-detail-actions"><a className="button secondary" href={`/api/meetings/${meeting.id}/exports?format=md`}>Export</a><Link className="button tertiary" href={view === "details" ? "?view=transcript" : "?view=details"} scroll={false}>{view === "details" ? "Workspace" : "Details"}</Link></div>
     </header>
     <MeetingWorkspace
       meetingId={meeting.id}

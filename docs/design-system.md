@@ -58,7 +58,7 @@ Base spacing steps: 4, 8, 12, 16, 20, 24, and 32 px. Controls are at least 44 px
 
 - Under 1024 px: bottom navigation, single selected meeting mode, full-width transcript/insights, sticky audio player above safe-area navigation.
 - 768 px and above: wider forms, three-column transcript rows, two-column detail utilities.
-- 1024 px and above: 240–248 px sidebar, timeline/transcript/insights workspace, audio player attached to workspace bottom.
+- 1024 px and above: 240–248 px sidebar, timeline/transcript/insights workspace, audio player attached to workspace bottom. Details replaces the workspace instead of rendering after the transcript.
 - 1280 px and above: more transcript space while keeping insights near 368 px.
 
 All fixed bottom UI includes `env(safe-area-inset-bottom)`. Reduced-motion preferences disable nonessential animation and smooth scrolling.
