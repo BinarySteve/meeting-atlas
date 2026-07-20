@@ -13,7 +13,17 @@ describe("compact transcript display", () => {
     expect(groups).toHaveLength(2);
     expect(groups[0].text).toBe("We decided to ship.");
     expect(groups[0].partiallyUnassigned).toBe(true);
+    expect(groups[0].containsOverlappingSpeech).toBe(false);
     expect(groups[0].segments.map((item) => item.id)).toEqual(["a", "b"]);
+  });
+
+  it("keeps overlapping speech separate and visible", () => {
+    const groups = groupTranscriptSegments([
+      segment({ id: "a", text: "Normal", endMs: 500 }),
+      segment({ id: "b", text: "Mixed", startMs: 500, assignmentReason: "overlapping_speech", speakerId: null, speakerName: "Unassigned" }),
+    ]);
+    expect(groups).toHaveLength(2);
+    expect(groups[1].containsOverlappingSpeech).toBe(true);
   });
 
   it("does not combine explicit competing speakers", () => {

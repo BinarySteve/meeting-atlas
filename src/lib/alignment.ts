@@ -1,8 +1,25 @@
 import { z } from "zod";
 import type { WhisperWord } from "./transcription";
 
-const turnSchema = z.object({ start: z.number().nonnegative(), end: z.number().positive(), speaker: z.string().min(1) });
-const diarizationSchema = z.object({ turns: z.array(turnSchema), exclusive_turns: z.array(turnSchema).default([]) }).passthrough();
+const turnSchema = z.object({ start: z.number().finite().nonnegative(), end: z.number().finite().positive(), speaker: z.string().min(1) })
+  .refine((turn) => turn.end > turn.start, "Diarization turn must have positive duration");
+const capabilitiesSchema = z.object({ overlap_detection: z.boolean(), exclusive_timing: z.boolean() });
+const speakerBoundsSchema = z.object({ min: z.number().int().min(1).max(8), max: z.number().int().min(1).max(8) })
+  .refine((bounds) => bounds.min <= bounds.max, "Minimum speakers cannot exceed maximum speakers");
+const diarizationSchema = z.object({
+  backend: z.string().min(1).optional(),
+  model: z.string().min(1).optional(),
+  model_revision: z.string().min(1).optional(),
+  model_digest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  config_fingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  speaker_bounds: speakerBoundsSchema.optional(),
+  turns: z.array(turnSchema),
+  exclusive_turns: z.array(turnSchema).default([]),
+  capabilities: capabilitiesSchema.optional(),
+}).passthrough().superRefine((value, context) => {
+  validateTurnOrder(value.turns, false, context);
+  validateTurnOrder(value.exclusive_turns, true, context);
+});
 
 export type AlignedSegment = {
   ordinal: number;
@@ -11,12 +28,21 @@ export type AlignedSegment = {
   text: string;
   speakerKey?: string;
   assignmentConfidence: number;
-  assignmentReason: "exclusive_overlap" | "regular_overlap" | "uncertain";
+  assignmentReason: "exclusive_overlap" | "regular_overlap" | "overlapping_speech" | "uncertain";
   confidence?: number;
   sourceSegmentIds: string[];
 };
 
 export function parseDiarization(value: unknown) { return diarizationSchema.parse(value); }
+
+export function validateDiarizationTimeline(value: unknown, durationMs: number) {
+  const parsed = parseDiarization(value);
+  const upperBound = durationMs + 1_000;
+  for (const turn of [...parsed.turns, ...parsed.exclusive_turns]) {
+    if (turn.end * 1_000 > upperBound) throw new Error("Diarization timing exceeds normalized audio duration");
+  }
+  return parsed;
+}
 
 export function alignWordsToSpeakers(words: WhisperWord[], rawDiarization: unknown, minimumOverlap = 0.5): AlignedSegment[] {
   const diarization = parseDiarization(rawDiarization);
@@ -26,6 +52,7 @@ export function alignWordsToSpeakers(words: WhisperWord[], rawDiarization: unkno
     if (word.endMs <= word.startMs || (index > 0 && word.startMs < words[index - 1].startMs)) {
       throw new Error("Whisper words must have monotonic positive timing");
     }
+    if (intersectsOverlappingSpeech(word, diarization.turns)) return { confidence: 0, overlappingSpeech: true };
     return scoreWord(word, turns, minimumOverlap);
   });
   smoothBriefSpeakerChanges(words, assignments);
@@ -36,6 +63,7 @@ export function alignWordsToSpeakers(words: WhisperWord[], rawDiarization: unkno
     const previous = current?.at(-1);
     const startsNewPhrase = !current
       || !previous
+      || previous.assignment.overlappingSpeech !== assignment.overlappingSpeech
       || Boolean(previous.assignment.speaker && assignment.speaker && previous.assignment.speaker !== assignment.speaker)
       || previous.word.sourceSegmentId !== word.sourceSegmentId
       || word.startMs - previous.word.endMs > 1_000
@@ -56,7 +84,8 @@ export function alignWordsToSpeakers(words: WhisperWord[], rawDiarization: unkno
     const runnerUpOverlap = ranked[1]?.[1] ?? 0;
     const assignmentConfidence = best ? Math.min(1, best[1] / speechDuration) : 0;
     const hasClearWinner = best ? (best[1] - runnerUpOverlap) / speechDuration >= 0.15 : false;
-    const speakerKey = assignmentConfidence >= minimumOverlap && hasClearWinner ? best?.[0] : undefined;
+    const overlappingSpeech = group.some((item) => item.assignment.overlappingSpeech);
+    const speakerKey = !overlappingSpeech && assignmentConfidence >= minimumOverlap && hasClearWinner ? best?.[0] : undefined;
     const probabilities = group.flatMap(({ word }) => word.confidence === undefined ? [] : [word.confidence]);
     return {
       ordinal,
@@ -65,7 +94,7 @@ export function alignWordsToSpeakers(words: WhisperWord[], rawDiarization: unkno
       text: group.map(({ word }) => word.text).join("").trim(),
       speakerKey,
       assignmentConfidence,
-      assignmentReason: speakerKey ? reason : "uncertain" as const,
+      assignmentReason: overlappingSpeech ? "overlapping_speech" as const : speakerKey ? reason : "uncertain" as const,
       confidence: probabilities.length ? probabilities.reduce((sum, p) => sum + p, 0) / probabilities.length : undefined,
       sourceSegmentIds: [...new Set(group.map(({ word }) => word.sourceSegmentId))],
     };
@@ -73,7 +102,32 @@ export function alignWordsToSpeakers(words: WhisperWord[], rawDiarization: unkno
 }
 
 type DiarizationTurn = z.infer<typeof turnSchema>;
-type WordAssignment = { speaker?: string; confidence: number };
+type WordAssignment = { speaker?: string; confidence: number; overlappingSpeech?: boolean };
+
+function validateTurnOrder(turns: DiarizationTurn[], exclusive: boolean, context: z.RefinementCtx): void {
+  let previousStart = 0;
+  let previousEnd = 0;
+  for (const [index, turn] of turns.entries()) {
+    if (turn.start < previousStart || (exclusive && turn.start < previousEnd)) {
+      context.addIssue({ code: "custom", message: exclusive ? "Exclusive diarization turns overlap" : "Diarization turns are not ordered", path: [exclusive ? "exclusive_turns" : "turns", index] });
+    }
+    previousStart = turn.start;
+    previousEnd = turn.end;
+  }
+}
+
+function intersectsOverlappingSpeech(word: WhisperWord, turns: DiarizationTurn[]): boolean {
+  const active = turns.filter((turn) => turn.end * 1_000 > word.startMs && turn.start * 1_000 < word.endMs);
+  for (const [index, left] of active.entries()) {
+    for (const right of active.slice(index + 1)) {
+      if (left.speaker === right.speaker) continue;
+      const overlapStart = Math.max(word.startMs, left.start * 1_000, right.start * 1_000);
+      const overlapEnd = Math.min(word.endMs, left.end * 1_000, right.end * 1_000);
+      if (overlapEnd > overlapStart) return true;
+    }
+  }
+  return false;
+}
 
 function scoreWord(word: WhisperWord, turns: DiarizationTurn[], minimumOverlap: number): WordAssignment {
   const duration = Math.max(1, word.endMs - word.startMs);

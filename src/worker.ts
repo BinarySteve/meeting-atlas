@@ -7,9 +7,9 @@ import { PIPELINE_QUEUE, redisConnection } from "./lib/queue";
 import { newStorageKey, removeStorageKey, resolveStorageKey } from "./lib/storage";
 import { writeJsonArtifact } from "./lib/storage";
 import { PIPELINE_STAGES, runStage } from "./lib/pipeline";
-import { streamProcessingRequest } from "./lib/processing-client";
+import { processingHealthRequest, streamProcessingRequest } from "./lib/processing-client";
 import { assembleWhisperCppResponse, extractWhisperWords, parseTranscriptionTimeline } from "./lib/transcription";
-import { alignWordsToSpeakers, parseDiarization } from "./lib/alignment";
+import { alignWordsToSpeakers, parseDiarization, validateDiarizationTimeline } from "./lib/alignment";
 import { readFile } from "node:fs/promises";
 import { runSummaryPipeline } from "./lib/summary-pipeline";
 import type { Prisma } from "@prisma/client";
@@ -94,18 +94,29 @@ new Worker<{ jobId: string }>(PIPELINE_QUEUE, async (bullJob) => {
         const prior = await db.rawDiarizationArtifact.findFirst({ where: { meetingId: job.meetingId }, orderBy: { createdAt: "desc" } });
         if (prior) {
           try {
+            const health = await processingHealthRequest();
             const raw = JSON.parse(await readFile(await resolveStorageKey(prior.storageKey), "utf8")) as unknown;
             const parsed = parseDiarization(raw);
-            return { storageKey: prior.storageKey, reused: true, turnCount: parsed.turns.length, exclusiveTurnCount: parsed.exclusive_turns.length };
+            const currentBackend = String(health.diarization_backend ?? "");
+            const currentRevision = String(health.diarization_model_revision ?? "");
+            const currentFingerprint = String(health.diarization_config_fingerprint ?? "");
+            const currentBounds = health.diarization_speaker_bounds;
+            const boundsMatch = currentBounds === null
+              ? parsed.speaker_bounds === undefined
+              : JSON.stringify(parsed.speaker_bounds) === JSON.stringify(currentBounds);
+            if (prior.normalizedStorageKey === refreshed.normalizedStorageKey && prior.backend === currentBackend && prior.configFingerprint && prior.configFingerprint === currentFingerprint && parsed.backend === currentBackend && parsed.model_revision === currentRevision && parsed.config_fingerprint === currentFingerprint && boundsMatch) {
+              validateDiarizationTimeline(raw, Number(refreshed.durationMs ?? 0));
+              return { storageKey: prior.storageKey, reused: true, turnCount: parsed.turns.length, exclusiveTurnCount: parsed.exclusive_turns.length };
+            }
           } catch { /* Re-run diarization when its immutable artifact is unavailable or malformed. */ }
         }
       }
       const raw = await streamProcessingRequest("diarize", await resolveStorageKey(refreshed.normalizedStorageKey), signal, stageAttemptId);
-      parseDiarization(raw);
+      validateDiarizationTimeline(raw, Number(refreshed.durationMs ?? 0));
       const storageKey = newStorageKey("artifact", "json");
       await writeJsonArtifact(storageKey, raw);
       try {
-        await db.rawDiarizationArtifact.create({ data: { meetingId: job.meetingId, stageAttemptId, storageKey, modelName: String(raw.model ?? "unknown") } });
+        await db.rawDiarizationArtifact.create({ data: { meetingId: job.meetingId, stageAttemptId, storageKey, normalizedStorageKey: refreshed.normalizedStorageKey, modelName: String(raw.model ?? "unknown"), backend: String(raw.backend ?? "unknown"), configFingerprint: typeof raw.config_fingerprint === "string" ? raw.config_fingerprint : null } });
       } catch (error) { await removeStorageKey(storageKey); throw error; }
       return { storageKey, turnCount: Array.isArray(raw.turns) ? raw.turns.length : 0, exclusiveTurnCount: Array.isArray(raw.exclusive_turns) ? raw.exclusive_turns.length : 0 };
     });

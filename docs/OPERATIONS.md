@@ -43,7 +43,24 @@ Set `WHISPER_BACKEND`, `WHISPER_EXECUTABLE`, restart service, then verify `/heal
 Invoke-RestMethod http://127.0.0.1:6982/api/health
 ```
 
-Expected components: database, Redis, worker heartbeat, FFmpeg, FFprobe, LM Studio, processing service. FastAPI `/health` requires bearer credential and reports Whisper executable/model, absolute-timeline readiness, VAD setting, and diarization model/backend/device. `whisper_vad_enabled` must report false; WeSpeaker speech detection remains independent.
+Expected components: database, Redis, worker heartbeat, FFmpeg, FFprobe, LM Studio, processing service. FastAPI `/health` requires bearer credential and reports Whisper executable/model, absolute-timeline readiness, VAD setting, diarization backend/model revision/manifest digest/config fingerprint, requested and actual device, capabilities, and offline flags. `whisper_vad_enabled` must report false. Pyannote health must show the expected local revision, `PYANNOTE_METRICS_ENABLED=0`, and no unavailable device.
+
+## Pyannote offline setup and promotion
+
+Accept the Community-1 agreement in Hugging Face, then run:
+
+```bash
+cd ~/meeting-transcriber-processing
+source .venv/bin/activate
+# Install the correct CPU or ROCm PyTorch build first so pip preserves it.
+pip install -e '.[diarization]'
+PYANNOTE_MODEL_PATH="$HOME/models/pyannote-speaker-diarization-community-1" \
+  bash scripts/setup-pyannote-offline.sh
+```
+
+Git prompts interactively for Hugging Face username and token with credential storage disabled. Setup removes `.git`, records the exact revision and file hashes, and never writes the token. Configure `DIARIZATION_BACKEND=pyannote`, `PYANNOTE_MODEL_PATH`, `PYANNOTE_DEVICE=cpu`, `PYANNOTE_MIN_SPEAKERS=1`, and `PYANNOTE_MAX_SPEAKERS=8`; restart service and inspect authenticated health.
+
+Benchmark private representative samples against `DIARIZATION_BACKEND=wespeaker`. Compare speaker count, speaker confusion, overlap detection, unassigned words, and real-time factor. Promote Pyannote only after it improves representative results and completes a one-hour recording within the operator's acceptable window. ROCm may be enabled only when health reports an actual `cuda` device and a real diarization smoke test succeeds. Roll back by installing `pip install -e '.[wespeaker]'` when needed and selecting `wespeaker`; immutable prior artifacts remain valid.
 
 ## Pipeline status operations
 
@@ -112,5 +129,5 @@ npm run retention:run
 - Job remains queued after enqueue failure: inspect Redis/BullMQ availability. Updated retry routes restore a failed durable state rather than leaving a false queued state.
 - FFprobe error: file is malformed/unsupported or contains no audio stream.
 - Processing `401`: credentials differ between Windows and Kubuntu.
-- Diarization degraded: confirm `avg_model.pt`, `config.yaml`, and FastAPI health.
+- Diarization degraded: confirm Pyannote `config.yaml`, `.meeting-atlas-model.json`, requested device, offline flags, and FastAPI health. For rollback, confirm WeSpeaker `avg_model.pt` and `config.yaml`.
 - LM Studio failure after transcript: retry resumes summary stage; audio work stays complete.

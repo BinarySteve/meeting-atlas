@@ -5,6 +5,7 @@ export type DisplaySegment = {
   text: string;
   speakerId: string | null;
   speakerName: string;
+  assignmentReason?: string | null;
 };
 
 export type TranscriptGroup<T extends DisplaySegment> = {
@@ -14,6 +15,7 @@ export type TranscriptGroup<T extends DisplaySegment> = {
   text: string;
   speakerName: string;
   partiallyUnassigned: boolean;
+  containsOverlappingSpeech: boolean;
   segments: T[];
 };
 
@@ -26,6 +28,8 @@ export function groupTranscriptSegments<T extends DisplaySegment>(segments: T[])
     const startsNewGroup = !current
       || !previous
       || conflictingSpeakers
+      || previous.assignmentReason === "overlapping_speech"
+      || segment.assignmentReason === "overlapping_speech"
       || segment.startMs - previous.endMs > 1_000
       || segment.endMs - current[0].startMs > 15_000
       || /[.!?]["')\]]?\s*$/.test(previous.text);
@@ -41,6 +45,7 @@ export function groupTranscriptSegments<T extends DisplaySegment>(segments: T[])
       text: joinTranscriptText(group.map((segment) => segment.text)),
       speakerName: assignedNames.length === 0 ? "Unassigned" : assignedNames.length === 1 ? assignedNames[0] : "Multiple speakers",
       partiallyUnassigned: assignedNames.length > 0 && group.some((segment) => !segment.speakerId),
+      containsOverlappingSpeech: group.some((segment) => segment.assignmentReason === "overlapping_speech"),
       segments: group,
     };
   });

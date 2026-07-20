@@ -15,7 +15,7 @@ LAN-only, local-first meeting transcription for Windows + Kubuntu. Browser talks
 | Live processing status, stage/unit progress, cross-tab updates, duplicate-run guard | Implemented |
 | Authenticated Kubuntu FastAPI service | Deployed as user systemd service |
 | whisper.cpp large-v3-turbo, Vulkan | Deployed and benchmarked; large-v3 configurable |
-| Ungated WeSpeaker diarization | Deployed; whole-file smoke test passed |
+| Local Pyannote Community-1 diarization | Implemented; deployment benchmark required before promotion |
 | Timestamp alignment and neutral speakers | Implemented |
 | Audio-synchronized transcript playback | Implemented |
 | Auditable transcript edits and speaker rename | Implemented |
@@ -28,9 +28,9 @@ LAN-only, local-first meeting transcription for Windows + Kubuntu. Browser talks
 | Audit history and retention controls | Implemented |
 | Qdrant, voice profiles, external integrations | Intentionally excluded |
 
-Known limitation: WeSpeaker backend does not detect simultaneous overlapping speakers. Raw artifacts declare this. Low-confidence alignment stays `Unassigned`; system never invents speaker identity.
+Pyannote preserves overlap-aware regular turns and supplies exclusive turns for transcript alignment. Words intersecting simultaneous speakers stay `Unassigned` and display a review warning; the system never invents which speaker produced mixed mono audio. WeSpeaker remains an explicit rollback backend.
 
-The meeting workspace uses the normalized pipeline WAV for playback, so Whisper, WeSpeaker, evidence links, seeking, and transcript following share one absolute millisecond timeline. Whisper VAD is deliberately disabled because its silence-compacted timestamps cannot synchronize with the recording. Word-level diarization evidence is smoothed and then grouped into natural phrases; ambiguous words and phrases remain `Unassigned`.
+The meeting workspace uses the normalized pipeline WAV for playback, so Whisper, Pyannote, evidence links, seeking, and transcript following share one absolute millisecond timeline. Whisper VAD is deliberately disabled because its silence-compacted timestamps cannot synchronize with the recording. Word-level diarization evidence is smoothed and then grouped into natural phrases; ambiguous and overlapping words remain `Unassigned`.
 
 A live status card remains visible in every workspace view and reports queued, running, retrying, cancellation, completion, and failure states. Long runs also report durable stage progress. Transcript reprocessing creates a new machine version and matching summary without overwriting prior raw artifacts or versions. Manual transcript versions are protected from accidental reprocessing.
 
@@ -48,7 +48,7 @@ LM Studio structured-output support varies by loaded model/runtime. The processo
 
 ## Data flow
 
-Browser → Next.js streaming upload → immutable filesystem object → PostgreSQL meeting/job transaction → Redis/BullMQ worker → FFprobe → FFmpeg normalized copy → authenticated FastAPI → local whisper.cpp + WeSpeaker + LM Studio → versioned PostgreSQL artifacts.
+Browser → Next.js streaming upload → immutable filesystem object → PostgreSQL meeting/job transaction → Redis/BullMQ worker → FFprobe → FFmpeg normalized copy → authenticated FastAPI → local whisper.cpp + Pyannote + LM Studio → versioned PostgreSQL artifacts.
 
 Worker state change → durable PostgreSQL job/stage snapshot → Redis invalidation → authenticated Next.js SSE snapshot → live meeting UI. PostgreSQL remains authoritative; Redis accelerates delivery but is not required to reconstruct status.
 
@@ -57,10 +57,9 @@ Closing or refreshing browser does not affect processing. Completed stages and w
 ## Privacy guarantees
 
 - No cloud transcription, diarization, LLM, storage, analytics, fonts, icons, assets, or error monitoring.
-- No Hugging Face account/token, gated model agreement, or contact-information sharing.
-- Model libraries forced offline during normal processing.
-- Explicit model setup contacts public download hosts without user identity; servers necessarily see downloader IP.
-- Browser never reaches LM Studio, FastAPI, whisper.cpp, WeSpeaker, Redis, or PostgreSQL.
+- Hugging Face account/token is used only at the interactive operator-run Community-1 download prompt. It is never stored in application configuration or available to runtime services.
+- Model libraries and Pyannote metrics are forced offline during normal processing.
+- Browser never reaches LM Studio, FastAPI, whisper.cpp, Pyannote, Redis, or PostgreSQL.
 - Structured logs contain IDs, stages, duration, backend, and bounded errors—never full transcripts, audio, secrets, tokens, or request bodies.
 - Original file preserved byte-for-byte. Stable relative storage keys prevent Windows-path coupling.
 
@@ -141,17 +140,17 @@ There is intentionally no public forgot-password endpoint. If the recovery passw
 
 Do not publish PostgreSQL or Redis. Restrict TCP 6982 and the HTTPS hostname to trusted LAN/VLAN clients. Do not expose through Cloudflare/WAN by default.
 
-## WeSpeaker model setup
+## Pyannote Community-1 model setup
 
 ```bash
 cd ~/meeting-transcriber-processing
 source .venv/bin/activate
 pip install -e '.[diarization]'
-WESPEAKER_MODEL_PATH="$HOME/models/wespeaker-resnet221-lm" \
-  bash scripts/setup-wespeaker-offline.sh
+PYANNOTE_MODEL_PATH="$HOME/models/pyannote-speaker-diarization-community-1" \
+  bash scripts/setup-pyannote-offline.sh
 ```
 
-Pinned archive SHA-256: `9462705bfafeed7b4a6585638a4d0140ddaf9338471198d014eb2579712f89f6`. VoxCeleb-derived model attribution/license: CC BY 4.0. Model files are not committed.
+Git prompts for Hugging Face username and token with credential storage disabled. Setup records the exact repository revision and SHA-256 of every local model file, then removes Git metadata. Do not add the token to `.env`. Community-1 license: CC BY 4.0. Model files are not committed. For rollback dependencies, install `pip install -e '.[wespeaker]'`, set `DIARIZATION_BACKEND=wespeaker`, and retain the legacy WeSpeaker variables.
 
 ## Documentation
 

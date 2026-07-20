@@ -75,6 +75,6 @@ def test_settings_reject_timeline_compacting_vad(tmp_path: Path) -> None:
             whisper_executable=tmp_path / "whisper-cli",
             whisper_model_path=tmp_path / "model.bin",
             whisper_vad_enabled=True,
-            wespeaker_model_path=tmp_path / "wespeaker",
+            pyannote_model_path=tmp_path / "pyannote",
             lm_studio_model="local-model",
         )

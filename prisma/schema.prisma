@@ -280,12 +280,15 @@ model RawTranscriptionArtifact {
 }
 
 model RawDiarizationArtifact {
-  id             String   @id @default(cuid())
-  meetingId      String
-  stageAttemptId String   @unique
-  storageKey     String   @unique
-  modelName      String
-  createdAt      DateTime @default(now())
+  id                   String   @id @default(cuid())
+  meetingId            String
+  stageAttemptId       String   @unique
+  storageKey           String   @unique
+  normalizedStorageKey String?
+  modelName            String
+  backend              String
+  configFingerprint    String?
+  createdAt            DateTime @default(now())
 }
 
 model SummaryVersion {

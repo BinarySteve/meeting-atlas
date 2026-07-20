@@ -25,7 +25,13 @@ class Settings(BaseSettings):
     whisper_vad_enabled: bool = False
     whisper_vad_model_path: Path | None = None
 
-    wespeaker_model_path: Path
+    diarization_backend: Literal["pyannote", "wespeaker"] = "pyannote"
+    pyannote_model_path: Path | None = None
+    pyannote_device: str = Field(default="cpu", pattern=r"^(cpu|cuda(?::\d+)?)$")
+    pyannote_min_speakers: int = Field(default=1, ge=1, le=64)
+    pyannote_max_speakers: int = Field(default=8, ge=1, le=64)
+
+    wespeaker_model_path: Path | None = None
     wespeaker_device: str = Field(default="cpu", pattern=r"^(cpu|cuda(?::\d+)?)$")
     wespeaker_min_duration: float = Field(default=0.255, gt=0, le=10)
     wespeaker_window_seconds: float = Field(default=1.5, gt=0, le=30)
@@ -43,6 +49,8 @@ class Settings(BaseSettings):
                 "WHISPER_VAD_ENABLED=true compacts silence and is incompatible with "
                 "synchronized transcript timestamps; set it to false"
             )
+        if self.pyannote_min_speakers > self.pyannote_max_speakers:
+            raise ValueError("PYANNOTE_MIN_SPEAKERS must not exceed PYANNOTE_MAX_SPEAKERS")
         return self
 
 

@@ -64,6 +64,6 @@ Verify rule order before enabling. If Windows directly health-checks LM Studio, 
 
 - LAN owner browser/session compromise exposes private meetings.
 - Filesystem/DB backups contain sensitive data; encrypt backup destination.
-- WeSpeaker public model setup reveals downloader IP to host, but sends no account/contact data.
+- Pyannote setup requires one interactive authenticated Hugging Face download and reveals account/contact data under the accepted Community-1 terms. Credential storage is disabled; Git metadata is removed; the token must never enter application configuration or runtime. Normal inference is local and forced offline with Pyannote metrics disabled.
 - User systemd needs linger for unattended boot before login.
 - Long-lived SSE connections increase authenticated connection count; reverse-proxy limits and timeouts must be sized for expected open meeting tabs.

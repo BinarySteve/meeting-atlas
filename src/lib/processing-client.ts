@@ -62,6 +62,18 @@ export async function processingJsonRequest(endpoint: "llm/structured", body: un
   return processingResponse.parse(JSON.parse(text));
 }
 
+export async function processingHealthRequest(): Promise<Record<string, unknown>> {
+  const env = getEnv();
+  const response = await fetch(new URL("/health", env.PROCESSING_API_URL), {
+    headers: { authorization: `Bearer ${env.PROCESSING_API_CREDENTIAL}` },
+    signal: AbortSignal.timeout(env.HEALTH_TIMEOUT_MS),
+    cache: "no-store",
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`Processing health HTTP ${response.status}: ${text.slice(0, 1000)}`);
+  return processingResponse.parse(JSON.parse(text));
+}
+
 async function cancelRemoteRequest(baseUrl: string, credential: string, requestId: string): Promise<void> {
   await fetch(new URL(`/v1/cancel/${encodeURIComponent(requestId)}`, baseUrl), { method: "POST", headers: { authorization: `Bearer ${credential}` }, signal: AbortSignal.timeout(3_000), cache: "no-store" }).catch(() => undefined);
 }

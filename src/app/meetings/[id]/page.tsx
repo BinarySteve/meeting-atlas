@@ -50,7 +50,7 @@ export default async function MeetingPage({ params, searchParams }: { params: Pr
       recordingName={recording?.originalFilename ?? null}
       initialProcessing={processing!}
       initialView={view}
-      transcript={transcript ? { id: transcript.id, version: transcript.version, segments: transcript.segments.map((segment) => ({ id: segment.id, startMs: Number(segment.startMs), endMs: Number(segment.endMs), text: segment.text, speakerId: segment.speakerId, speakerName: segment.speaker?.displayName ?? "Unassigned", excluded: segment.excludedFromSummary })) } : undefined}
+      transcript={transcript ? { id: transcript.id, version: transcript.version, segments: transcript.segments.map((segment) => ({ id: segment.id, startMs: Number(segment.startMs), endMs: Number(segment.endMs), text: segment.text, speakerId: segment.speakerId, speakerName: segment.speaker?.displayName ?? "Unassigned", assignmentReason: segment.assignmentReason, excluded: segment.excludedFromSummary })) } : undefined}
       activeTranscriptSource={transcript?.source ?? null}
       transcriptVersions={meeting.transcriptVersions.map((version) => ({ id: version.id, version: version.version, source: version.source, createdAtLabel: version.createdAt.toLocaleString(), active: version.id === transcript?.id }))}
       speakers={activeSpeakers.map((speaker) => ({ id: speaker.id, displayName: speaker.displayName }))}

@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { alignWordsToSpeakers } from "./alignment";
+import { alignWordsToSpeakers, parseDiarization } from "./alignment";
 
 describe("speaker alignment", () => {
+  it("rejects malformed model metadata and speaker bounds", () => {
+    expect(() => parseDiarization({
+      model_digest: "not-a-digest",
+      speaker_bounds: { min: 4, max: 2 },
+      turns: [],
+    })).toThrow();
+  });
+
   it("prefers exclusive turns and leaves weak overlap unassigned", () => {
     const result = alignWordsToSpeakers([
       { text: " Hello", startMs: 100, endMs: 600, sourceSegmentId: "w:0" },
@@ -34,7 +42,26 @@ describe("speaker alignment", () => {
       { text: " speech", startMs: 500, endMs: 1000, sourceSegmentId: "w:0" },
     ], { turns: [{ start: 0, end: 1, speaker: "A" }, { start: 0, end: 1, speaker: "B" }] });
     expect(result[0].speakerKey).toBeUndefined();
-    expect(result[0].assignmentReason).toBe("uncertain");
+    expect(result[0].assignmentReason).toBe("overlapping_speech");
+  });
+
+  it("uses exclusive timing outside overlap and isolates overlapping words", () => {
+    const result = alignWordsToSpeakers([
+      { text: " First", startMs: 0, endMs: 800, sourceSegmentId: "w:0" },
+      { text: " mixed", startMs: 800, endMs: 1_200, sourceSegmentId: "w:0" },
+      { text: " second", startMs: 1_200, endMs: 2_000, sourceSegmentId: "w:0" },
+    ], {
+      turns: [
+        { start: 0, end: 1.2, speaker: "A" },
+        { start: 0.8, end: 2, speaker: "B" },
+      ],
+      exclusive_turns: [
+        { start: 0, end: 0.8, speaker: "A" },
+        { start: 1.2, end: 2, speaker: "B" },
+      ],
+    });
+    expect(result.map((segment) => segment.speakerKey)).toEqual(["A", undefined, "B"]);
+    expect(result.map((segment) => segment.assignmentReason)).toEqual(["exclusive_overlap", "overlapping_speech", "exclusive_overlap"]);
   });
 
   it("splits a sentence at a confident diarization handoff", () => {

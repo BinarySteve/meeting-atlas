@@ -9,7 +9,7 @@ import type { ProcessingSnapshot } from "@/lib/processing-status";
 import { MeetingDeleteButton } from "@/app/meeting-delete-button";
 
 type Speaker = { id: string; displayName: string };
-type Segment = { id: string; startMs: number; endMs: number; text: string; speakerId: string | null; speakerName: string; excluded: boolean };
+type Segment = { id: string; startMs: number; endMs: number; text: string; speakerId: string | null; speakerName: string; assignmentReason: string | null; excluded: boolean };
 type EvidenceItem = { id: string; text: string; evidence: string[] };
 type Summary = { id: string; version: number; transcriptVersion: number; summary: string; keyPoints: Array<{ text: string; evidence: string[] }> };
 type Action = { id: string; description: string; owner: string | null; dueDate: string | null; status: ItemStatus; rejected: boolean; evidence: string[] };
@@ -63,7 +63,7 @@ export function MeetingWorkspace(props: {
   const segmentIndex = useMemo(() => new Map(segments.map((segment, index) => [segment.id, index])), [segments]);
   const transcriptGroups = useMemo<TranscriptGroup<Segment>[]>(() => compactTranscript
     ? groupTranscriptSegments(segments)
-    : segments.map((segment) => ({ id: segment.id, startMs: segment.startMs, endMs: segment.endMs, text: segment.text, speakerName: segment.speakerName, partiallyUnassigned: false, segments: [segment] })), [compactTranscript, segments]);
+    : segments.map((segment) => ({ id: segment.id, startMs: segment.startMs, endMs: segment.endMs, text: segment.text, speakerName: segment.speakerName, partiallyUnassigned: false, containsOverlappingSpeech: segment.assignmentReason === "overlapping_speech", segments: [segment] })), [compactTranscript, segments]);
   const visibleGroups = useMemo(() => { const query = transcriptQuery.trim().toLocaleLowerCase(); return query ? transcriptGroups.filter((group) => group.text.toLocaleLowerCase().includes(query) || group.speakerName.toLocaleLowerCase().includes(query)) : transcriptGroups; }, [transcriptGroups, transcriptQuery]);
   const timelineGroups = useMemo(() => transcriptGroups.filter((_, index) => index === 0 || index % Math.max(1, Math.ceil(transcriptGroups.length / 7)) === 0).slice(0, 8), [transcriptGroups]);
   const activeSegment = findActiveTimedSegment(segments, currentMs);
@@ -198,7 +198,7 @@ export function MeetingWorkspace(props: {
         {props.transcript && <div className="transcript-search"><label className="sr-only" htmlFor="transcript-search">Search transcript</label><input id="transcript-search" type="search" value={transcriptQuery} onChange={(event) => setTranscriptQuery(event.target.value)} placeholder="Search in transcript"/><span role="status">{transcriptQuery ? `${visibleGroups.length} matches` : `${transcriptGroups.length} passages`}</span></div>}
         {props.transcript ? <div className="transcript">{visibleGroups.map((group) => <article id={`transcript-group-${group.id}`} className={`segment-row ${activeGroup?.id === group.id ? "active" : ""}`} key={group.id} onDoubleClick={() => seek(group)}>
           <button className="seek" onClick={() => seek(group)} aria-label={`Play from ${formatMs(group.startMs)}`}>{formatMs(group.startMs)}</button>
-          <div className="speaker-name"><span className={`speaker-dot speaker-${Math.max(0, props.speakers.findIndex((speaker) => speaker.displayName === group.speakerName)) % 5}`}/><strong>{group.speakerName}</strong>{group.partiallyUnassigned && <small>Speaker timing uncertain</small>}</div>
+          <div className="speaker-name"><span className={`speaker-dot speaker-${Math.max(0, props.speakers.findIndex((speaker) => speaker.displayName === group.speakerName)) % 5}`}/><strong>{group.speakerName}</strong>{group.containsOverlappingSpeech ? <small className="overlap-warning">Overlapping speechâ€”review audio</small> : group.partiallyUnassigned && <small>Speaker timing uncertain</small>}</div>
           <p>{group.text}</p>
           <div className="segment-editor"><button className="edit-toggle" aria-expanded={editingGroupId === group.id} onClick={() => setEditingGroupId((value) => value === group.id ? null : group.id)}>Edit {group.segments.length === 1 ? "segment" : `${group.segments.length} source segments`}</button>{editingGroupId === group.id && <div className="source-segments">{group.segments.map((segment) => <SegmentEditor key={segment.id} segment={segment} speakers={props.speakers} nextSegment={segments[(segmentIndex.get(segment.id) ?? -1) + 1]} onEdit={edit}/>)}</div>}</div>
         </article>)}{visibleGroups.length === 0 && <p className="empty">No transcript passages match.</p>}</div> : <p className="empty">Transcript becomes available after transcription and alignment.</p>}

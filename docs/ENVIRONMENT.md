@@ -48,9 +48,13 @@ Next.js and Compose both use TCP `6982`; Compose publishes host TCP `6982` to co
 - `WHISPER_MODEL_NAME`: `large-v3-turbo` or `large-v3`.
 - `WHISPER_LANGUAGE`, `WHISPER_THREADS`: decoding controls.
 - `WHISPER_VAD_ENABLED`: must remain `false`. whisper.cpp VAD compacts silence and breaks the absolute timestamps required by seeking and transcript following; startup rejects `true`.
-- `WHISPER_VAD_MODEL_PATH`: obsolete for transcription and intentionally omitted from the example environment. WeSpeaker manages its own local speech detection independently.
-- `WESPEAKER_MODEL_PATH`: directory containing `avg_model.pt` + `config.yaml`.
+- `WHISPER_VAD_MODEL_PATH`: obsolete for transcription and intentionally omitted from the example environment. Diarization manages speech detection independently.
+- `DIARIZATION_BACKEND`: `pyannote` default or `wespeaker` rollback.
+- `PYANNOTE_MODEL_PATH`: verified offline Community-1 directory containing `config.yaml` and `.meeting-atlas-model.json`.
+- `PYANNOTE_DEVICE`: `cpu` default or verified PyTorch/ROCm `cuda[:index]`; unavailable requested devices degrade health and processing fails instead of silently falling back.
+- `PYANNOTE_MIN_SPEAKERS`, `PYANNOTE_MAX_SPEAKERS`: automatic counting bounds; defaults `1` and `8`.
+- `WESPEAKER_MODEL_PATH`: rollback-only directory containing `avg_model.pt` + `config.yaml`.
 - `WESPEAKER_DEVICE`: `cpu` or ROCm PyTorch `cuda[:index]`.
 - `WESPEAKER_MIN_DURATION`, `WESPEAKER_WINDOW_SECONDS`, `WESPEAKER_PERIOD_SECONDS`, `WESPEAKER_BATCH_SIZE`: diarization tuning.
 - `LM_STUDIO_URL`, `LM_STUDIO_MODEL`, `LM_STUDIO_TIMEOUT_SECONDS`: local structured-generation endpoint/config.
-- `HF_HUB_OFFLINE`, `HF_HUB_DISABLE_TELEMETRY`, `TRANSFORMERS_OFFLINE`: forced by systemd/runtime.
+- `HF_HUB_OFFLINE`, `HF_HUB_DISABLE_TELEMETRY`, `TRANSFORMERS_OFFLINE`, `PYANNOTE_METRICS_ENABLED=0`: forced by systemd/runtime. Never configure a Hugging Face token in runtime environment.

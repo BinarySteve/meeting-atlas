@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import time
 from collections.abc import Awaitable
 from pathlib import Path
@@ -9,7 +10,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from .diarization import diarize
+from .diarization import diarization_status, diarize
 from .files import receive_stream
 from .llm import structured_completion
 from .security import require_service_auth
@@ -30,14 +31,24 @@ class LlmRequest(BaseModel):
 @app.get("/health")
 def health(_: None = Depends(require_service_auth)) -> dict[str, Any]:
     settings = get_settings()
+    diarization = diarization_status(settings)
+    offline_flags = {
+        "HF_HUB_OFFLINE": os.environ.get("HF_HUB_OFFLINE", ""),
+        "HF_HUB_DISABLE_TELEMETRY": os.environ.get("HF_HUB_DISABLE_TELEMETRY", ""),
+        "TRANSFORMERS_OFFLINE": os.environ.get("TRANSFORMERS_OFFLINE", ""),
+        "PYANNOTE_METRICS_ENABLED": os.environ.get("PYANNOTE_METRICS_ENABLED", ""),
+    }
     components = {
         "whisper_executable": settings.whisper_executable.is_file(),
         "whisper_model": settings.whisper_model_path.is_file(),
         "whisper_absolute_timeline": not settings.whisper_vad_enabled,
-        "diarization_model": all(
-            (settings.wespeaker_model_path / filename).is_file()
-            for filename in ("avg_model.pt", "config.yaml")
-        ),
+        "diarization_model": diarization["ready"],
+        "offline_runtime": offline_flags == {
+            "HF_HUB_OFFLINE": "1",
+            "HF_HUB_DISABLE_TELEMETRY": "1",
+            "TRANSFORMERS_OFFLINE": "1",
+            "PYANNOTE_METRICS_ENABLED": "0",
+        },
     }
     return {
         "status": "healthy" if all(components.values()) else "degraded",
@@ -45,8 +56,16 @@ def health(_: None = Depends(require_service_auth)) -> dict[str, Any]:
         "whisper_backend": settings.whisper_backend,
         "whisper_model_name": settings.whisper_model_name,
         "whisper_vad_enabled": settings.whisper_vad_enabled,
-        "diarization_backend": "wespeaker",
-        "diarization_device": settings.wespeaker_device,
+        "diarization_backend": settings.diarization_backend,
+        "diarization_model": diarization["model"],
+        "diarization_model_revision": diarization["model_revision"],
+        "diarization_model_digest": diarization.get("model_digest"),
+        "diarization_requested_device": diarization["requested_device"],
+        "diarization_actual_device": diarization["actual_device"],
+        "diarization_config_fingerprint": diarization["config_fingerprint"],
+        "diarization_speaker_bounds": diarization["speaker_bounds"],
+        "diarization_capabilities": diarization["capabilities"],
+        "offline_flags": offline_flags,
         "lm_studio_model": settings.lm_studio_model,
     }
 
@@ -78,9 +97,7 @@ async def diarize_route(
     suffix = Path(x_filename).suffix
     async for path, sha256, byte_size in receive_stream(request, suffix):
         try:
-            result = await registered(
-                x_request_id, "diarization", asyncio.to_thread(diarize, path)
-            )
+            result = await registered(x_request_id, "diarization", diarize(path))
             return {**result, "input_sha256": sha256, "input_bytes": byte_size}
         except RuntimeError as error:
             raise HTTPException(status_code=503, detail=str(error)) from error
