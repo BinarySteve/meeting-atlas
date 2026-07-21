@@ -6,6 +6,7 @@ import { publishProcessingUpdate } from "./processing-status";
 import { processingJsonRequest } from "./processing-client";
 import {
   FINAL_SYSTEM_PROMPT,
+  discardUnsupportedEvidence,
   type MeetingOutput,
   meetingOutputJsonSchema,
   meetingOutputSchema,
@@ -40,7 +41,12 @@ export async function requestValidatedMeetingOutput(
       user: `${constrainedSource}\n\nPrior invalid output:\n${JSON.stringify(response.content)}\n\nValidation error:\n${reason}`,
       schema: meetingOutputJsonSchema,
     }, signal, `${requestId}:repair`);
-    return validateEvidence(meetingOutputSchema.parse(repaired.content), allowedIds);
+    const parsed = meetingOutputSchema.parse(repaired.content);
+    try {
+      return validateEvidence(parsed, allowedIds);
+    } catch {
+      return discardUnsupportedEvidence(parsed, allowedIds);
+    }
   }
 }
 

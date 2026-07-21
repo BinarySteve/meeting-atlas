@@ -30,6 +30,7 @@ export async function inspectMedia(filePath: string, signal?: AbortSignal): Prom
   return { format: raw.format.format_name, durationMs: BigInt(Math.round(Number(raw.format.duration) * 1000)), byteSize: BigInt(raw.format.size), sampleRate: audio.sample_rate ? Number(audio.sample_rate) : undefined, channels: audio.channels, raw };
 }
 
-export async function normalizeMedia(input: string, output: string, signal?: AbortSignal): Promise<void> {
+export async function normalizeMedia(input: string, output: string, signal?: AbortSignal): Promise<MediaInfo> {
   await run(getEnv().FFMPEG_PATH, ["-nostdin", "-y", "-i", input, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", output], getEnv().SUBPROCESS_TIMEOUT_MS, signal);
+  return inspectMedia(output, signal);
 }

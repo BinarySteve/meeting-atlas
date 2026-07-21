@@ -8,7 +8,7 @@ Browser talks only to LAN-bound Next.js. Signed HTTP-only, SameSite=Strict owner
 
 Next.js streams raw request bodies directly into generated filesystem keys. Client filename is metadata only. PostgreSQL owns meeting state and stable references. Redis AOF + BullMQ preserve queued work. Separate Node worker performs checkpointed stages independently of browser sessions.
 
-FFprobe/FFmpeg use argument arrays with no shell interpolation, bounded logs, timeouts, and abort signals. Upload extensions/MIME are never trusted. Original stays immutable; working copy is mono 16 kHz PCM WAV.
+FFprobe/FFmpeg use argument arrays with no shell interpolation, bounded logs, timeouts, and abort signals. Upload extensions/MIME are never trusted. Original stays immutable; working copy is mono 16 kHz PCM WAV. After normalization, the recording timeline is reconciled to the decoded PCM duration so stale or deceptive container duration metadata cannot desynchronize transcription, diarization, or playback.
 
 ## Kubuntu processing service
 
@@ -41,7 +41,7 @@ The client installs the stream once for the meeting workspace, independent of th
 
 Raw transcription and diarization remain immutable artifacts. Editing and reprocessing each create a new transcript version with a parent pointer. Text correction, speaker reassignment, split, merge, summary exclusion, and reprocessing never overwrite earlier machine or manual output. A manually active transcript cannot be reprocessed; the owner must explicitly activate a machine version first. Meeting-row locks serialize job creation, transcript edits, summary restore, and transcript activation so a late pipeline completion cannot silently displace concurrent manual work. Speaker rename updates relational display name and alias history without touching raw diarization.
 
-`Meeting.activeTranscriptVersionId` is the authoritative presentation/export pointer. Each summary targets one transcript version. Section summaries retain transcript IDs/timestamps. Final decisions, action items, open questions, and claims must pass Zod validation and reference known segment IDs. Summary restore activates both its summary and transcript; explicit transcript activation selects its newest completed summary when available. Older versions, summaries, and items remain stored.
+`Meeting.activeTranscriptVersionId` is the authoritative presentation/export pointer. Each summary targets one transcript version. Section summaries retain transcript IDs/timestamps. Final decisions, action items, open questions, and claims must pass Zod validation and reference known segment IDs. Invalid structured output receives one bounded local-LLM repair attempt; remaining unsupported evidence IDs are deterministically removed, and an item with no valid evidence is discarded rather than guessed or persisted. Summary restore activates both its summary and transcript; explicit transcript activation selects its newest completed summary when available. Older versions, summaries, and items remain stored.
 
 ## Search, exports, retention, backups
 

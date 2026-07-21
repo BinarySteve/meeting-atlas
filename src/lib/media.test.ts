@@ -36,6 +36,18 @@ describe("media inspection and cancellation", () => {
     controller.abort();
     await expect(normalizeMedia(input, path.join(directory, "output.wav"), controller.signal)).rejects.toThrow("JOB_CANCELLED");
   });
+
+  it("reports the decoded normalized timeline", async () => {
+    const input = path.join(directory, "input.wav");
+    const output = path.join(directory, "normalized.wav");
+    await writeFile(input, wavFixture());
+
+    const normalized = await normalizeMedia(input, output);
+
+    expect(normalized.durationMs).toBe(BigInt(100));
+    expect(normalized.sampleRate).toBe(16_000);
+    expect(normalized.channels).toBe(1);
+  });
 });
 
 function wavFixture(): Buffer {

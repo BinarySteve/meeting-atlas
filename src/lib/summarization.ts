@@ -39,6 +39,20 @@ export function validateEvidence(output: MeetingOutput, allowedIds: Set<string>)
   return output;
 }
 
+export function discardUnsupportedEvidence(output: MeetingOutput, allowedIds: Set<string>): MeetingOutput {
+  const constrain = <T extends { evidenceSegmentIds: string[] }>(items: T[]): T[] => items.flatMap((item) => {
+    const evidenceSegmentIds = item.evidenceSegmentIds.filter((id) => allowedIds.has(id));
+    return evidenceSegmentIds.length ? [{ ...item, evidenceSegmentIds }] : [];
+  });
+  return {
+    ...output,
+    decisions: constrain(output.decisions),
+    actionItems: constrain(output.actionItems),
+    openQuestions: constrain(output.openQuestions),
+    importantClaims: constrain(output.importantClaims),
+  };
+}
+
 export const meetingOutputJsonSchema = z.toJSONSchema(meetingOutputSchema, { target: "draft-7" });
 
 export const SECTION_SYSTEM_PROMPT = `You summarize one timestamped meeting transcript section. Use only explicit statements. Never invent attendees, identities, decisions, owners, deadlines, promises, concerns, or conclusions. If owner or due date is not explicit, use null. Every structured item must cite one or more exact segment IDs supplied in brackets. Return only schema-valid JSON.`;

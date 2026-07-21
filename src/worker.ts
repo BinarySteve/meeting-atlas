@@ -62,11 +62,12 @@ new Worker<{ jobId: string }>(PIPELINE_QUEUE, async (bullJob) => {
       } catch { /* Regenerate a missing or invalid derived file from the immutable original. */ }
     }
     const key = newStorageKey("normalized", "wav");
-    try { await normalizeMedia(original, await resolveStorageKey(key), signal); }
+    let normalized: Awaited<ReturnType<typeof normalizeMedia>>;
+    try { normalized = await normalizeMedia(original, await resolveStorageKey(key), signal); }
     catch (error) { await removeStorageKey(key); throw error; }
-    await db.recording.update({ where: { id: recording.id }, data: { normalizedStorageKey: key } });
+    await db.recording.update({ where: { id: recording.id }, data: { normalizedStorageKey: key, durationMs: normalized.durationMs } });
     if (refreshed.normalizedStorageKey && refreshed.normalizedStorageKey !== key) await removeStorageKey(refreshed.normalizedStorageKey);
-    return { storageKey: key };
+    return { storageKey: key, durationMs: normalized.durationMs.toString() };
   });
   const env = getEnv();
   if (env.PROCESSING_MODE === "simulation" && (!env.ALLOW_SIMULATION || process.env.NODE_ENV === "production")) throw new Error("Simulation mode forbidden by environment policy");
