@@ -82,7 +82,7 @@ def _validate_absolute_timeline(raw: Any, duration_ms: int) -> None:
             or not math.isfinite(end)
             or start < previous_start
             or start < 0
-            or end <= start
+            or end < start
             or end > upper_bound
         ):
             raise RuntimeError("whisper.cpp returned invalid absolute timestamps")

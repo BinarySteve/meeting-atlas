@@ -44,11 +44,18 @@ def test_transcription_preserves_absolute_timeline(
         observed_args.extend(args)
         output_prefix = Path(args[args.index("--output-file") + 1])
         output_prefix.with_suffix(".json").write_text(
-            json.dumps({"transcription": [{
-                "offsets": {"from": 100, "to": 900},
-                "text": " hello",
-                "tokens": [{"text": " hello", "offsets": {"from": 100, "to": 900}}],
-            }]}),
+            json.dumps({"transcription": [
+                {
+                    "offsets": {"from": 100, "to": 900},
+                    "text": " hello",
+                    "tokens": [{"text": " hello", "offsets": {"from": 100, "to": 900}}],
+                },
+                {
+                    "offsets": {"from": 900, "to": 900},
+                    "text": " decoder artifact",
+                    "tokens": [{"text": " decoder artifact", "offsets": {"from": 900, "to": 900}}],
+                },
+            ]}),
             encoding="utf-8",
         )
         return SimpleNamespace(duration_seconds=0.5)
@@ -66,6 +73,18 @@ def test_transcription_preserves_absolute_timeline(
         "duration_ms": 1000,
         "speech_gaps_preserved": True,
     }
+    assert result["raw"]["transcription"][1]["offsets"] == {
+        "from": 900,
+        "to": 900,
+    }
+
+
+def test_transcription_rejects_reversed_timestamps() -> None:
+    with pytest.raises(RuntimeError, match="invalid absolute timestamps"):
+        whisper._validate_absolute_timeline(
+            {"transcription": [{"offsets": {"from": 900, "to": 899}}]},
+            1_000,
+        )
 
 
 def test_settings_reject_timeline_compacting_vad(tmp_path: Path) -> None:

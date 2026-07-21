@@ -44,7 +44,7 @@ export function parseTranscriptionTimeline(value: unknown): { durationMs: number
 export function extractWhisperWords(value: unknown): WhisperWord[] {
   const parsed = responseSchema.parse(value);
   return parsed.raw.transcription.flatMap((segment, segmentIndex) => segment.tokens.flatMap((token) => {
-    if (SPECIAL_TOKEN_ONLY.test(token.text) || !token.text) return [];
+    if (SPECIAL_TOKEN_ONLY.test(token.text) || !token.text || token.offsets.to <= token.offsets.from) return [];
     return [{ text: token.text, startMs: token.offsets.from, endMs: token.offsets.to, confidence: token.p, sourceSegmentId: `whisper:${segmentIndex}` }];
   }));
 }

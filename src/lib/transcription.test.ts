@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assembleWhisperCppResponse } from "./transcription";
+import { assembleWhisperCppResponse, extractWhisperWords } from "./transcription";
 
 describe("whisper.cpp transcript assembly", () => {
   it("preserves offsets, strips control tokens, and averages confidence", () => {
@@ -9,5 +9,21 @@ describe("whisper.cpp transcript assembly", () => {
 
   it("rejects malformed service output", () => {
     expect(() => assembleWhisperCppResponse({ raw: {} })).toThrow();
+  });
+
+  it("keeps zero-duration decoder artifacts out of derived transcript data", () => {
+    const response = {
+      timeline: { basis: "normalized_audio", unit: "milliseconds", duration_ms: 1_000, speech_gaps_preserved: true },
+      raw: {
+        transcription: [{
+          offsets: { from: 580, to: 580 },
+          text: " decoder artifact",
+          tokens: [{ text: " decoder artifact", offsets: { from: 580, to: 580 }, p: 0.5 }],
+        }],
+      },
+    };
+
+    expect(extractWhisperWords(response)).toEqual([]);
+    expect(assembleWhisperCppResponse(response)).toEqual([]);
   });
 });
