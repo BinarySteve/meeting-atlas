@@ -34,7 +34,15 @@ export type AssembledMachineSegment = {
   sourceSegmentIds: string[];
 };
 
-export type WhisperWord = { text: string; startMs: number; endMs: number; confidence?: number; sourceSegmentId: string };
+export type WhisperWord = {
+  text: string;
+  startMs: number;
+  endMs: number;
+  confidence?: number;
+  sourceSegmentId: string;
+  timingSource?: WhisperWordTimingSource;
+};
+export type WhisperWordTimingSource = "native" | "repaired";
 
 export function parseTranscriptionTimeline(value: unknown): { durationMs: number } {
   const parsed = responseSchema.parse(value);
@@ -43,10 +51,36 @@ export function parseTranscriptionTimeline(value: unknown): { durationMs: number
 
 export function extractWhisperWords(value: unknown): WhisperWord[] {
   const parsed = responseSchema.parse(value);
-  return parsed.raw.transcription.flatMap((segment, segmentIndex) => segment.tokens.flatMap((token) => {
-    if (SPECIAL_TOKEN_ONLY.test(token.text) || !token.text || token.offsets.to <= token.offsets.from) return [];
-    return [{ text: token.text, startMs: token.offsets.from, endMs: token.offsets.to, confidence: token.p, sourceSegmentId: `whisper:${segmentIndex}` }];
-  }));
+  return parsed.raw.transcription.flatMap((segment, segmentIndex) => {
+    let previousStart = segment.offsets.from;
+    return segment.tokens.flatMap((token): WhisperWord[] => {
+      if (SPECIAL_TOKEN_ONLY.test(token.text) || !token.text) return [];
+      if (token.offsets.to > token.offsets.from) {
+        previousStart = token.offsets.from;
+        return [{
+          text: token.text,
+          startMs: token.offsets.from,
+          endMs: token.offsets.to,
+          confidence: token.p,
+          sourceSegmentId: `whisper:${segmentIndex}`,
+          timingSource: "native",
+        }];
+      }
+      if (token.offsets.to < token.offsets.from || segment.offsets.to <= segment.offsets.from) return [];
+      const latestStart = segment.offsets.to - 1;
+      const startMs = Math.max(previousStart, segment.offsets.from, Math.min(token.offsets.from, latestStart));
+      if (startMs >= segment.offsets.to) return [];
+      previousStart = startMs;
+      return [{
+        text: token.text,
+        startMs,
+        endMs: Math.min(segment.offsets.to, startMs + 1),
+        confidence: token.p,
+        sourceSegmentId: `whisper:${segmentIndex}`,
+        timingSource: "repaired",
+      }];
+    });
+  });
 }
 
 export function assembleWhisperCppResponse(value: unknown): AssembledMachineSegment[] {

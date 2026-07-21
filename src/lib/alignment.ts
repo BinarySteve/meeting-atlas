@@ -52,6 +52,7 @@ export function alignWordsToSpeakers(words: WhisperWord[], rawDiarization: unkno
     if (word.endMs <= word.startMs || (index > 0 && word.startMs < words[index - 1].startMs)) {
       throw new Error("Whisper words must have monotonic positive timing");
     }
+    if (word.timingSource === "repaired") return { confidence: 0 };
     if (intersectsOverlappingSpeech(word, diarization.turns)) return { confidence: 0, overlappingSpeech: true };
     return scoreWord(word, turns, minimumOverlap);
   });

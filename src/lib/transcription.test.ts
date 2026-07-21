@@ -26,4 +26,29 @@ describe("whisper.cpp transcript assembly", () => {
     expect(extractWhisperWords(response)).toEqual([]);
     expect(assembleWhisperCppResponse(response)).toEqual([]);
   });
+
+  it("repairs zero-duration words inside a valid source segment", () => {
+    const response = {
+      timeline: { basis: "normalized_audio", unit: "milliseconds", duration_ms: 2_000, speech_gaps_preserved: true },
+      raw: {
+        transcription: [{
+          offsets: { from: 580, to: 1_200 },
+          text: " This is the story.",
+          tokens: [
+            { text: " This", offsets: { from: 580, to: 580 }, p: 0.9 },
+            { text: " is", offsets: { from: 580, to: 800 }, p: 0.8 },
+            { text: " the", offsets: { from: 800, to: 800 }, p: 0.7 },
+            { text: " story.", offsets: { from: 800, to: 1_200 }, p: 0.95 },
+          ],
+        }],
+      },
+    };
+
+    expect(extractWhisperWords(response)).toEqual([
+      { text: " This", startMs: 580, endMs: 581, confidence: 0.9, sourceSegmentId: "whisper:0", timingSource: "repaired" },
+      { text: " is", startMs: 580, endMs: 800, confidence: 0.8, sourceSegmentId: "whisper:0", timingSource: "native" },
+      { text: " the", startMs: 800, endMs: 801, confidence: 0.7, sourceSegmentId: "whisper:0", timingSource: "repaired" },
+      { text: " story.", startMs: 800, endMs: 1_200, confidence: 0.95, sourceSegmentId: "whisper:0", timingSource: "native" },
+    ]);
+  });
 });

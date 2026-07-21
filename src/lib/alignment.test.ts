@@ -85,4 +85,19 @@ describe("speaker alignment", () => {
     expect(result).toHaveLength(1);
     expect(result[0].speakerKey).toBe("A");
   });
+
+  it("uses repaired words as text but not independent speaker evidence", () => {
+    const mixed = alignWordsToSpeakers([
+      { text: " This", startMs: 100, endMs: 101, sourceSegmentId: "w:0", timingSource: "repaired" },
+      { text: " works.", startMs: 100, endMs: 600, sourceSegmentId: "w:0", timingSource: "native" },
+    ], { turns: [{ start: 0, end: 1, speaker: "A" }] });
+    expect(mixed[0].text).toBe("This works.");
+    expect(mixed[0].speakerKey).toBe("A");
+
+    const repairedOnly = alignWordsToSpeakers([
+      { text: " Uncertain", startMs: 100, endMs: 101, sourceSegmentId: "w:1", timingSource: "repaired" },
+    ], { turns: [{ start: 0, end: 1, speaker: "A" }] });
+    expect(repairedOnly[0].speakerKey).toBeUndefined();
+    expect(repairedOnly[0].assignmentReason).toBe("uncertain");
+  });
 });
