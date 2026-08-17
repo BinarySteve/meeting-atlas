@@ -46,6 +46,7 @@ export function LlmModelSettings({
     if (models.some((model) => model.id === draftModel)) return models;
     return [{ id: draftModel, displayName: draftModel, loaded: false, reported: false }, ...models];
   }, [draftModel, models]);
+  const draftOption = options.find((model) => model.id === draftModel);
 
   async function saveModel(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -91,14 +92,21 @@ export function LlmModelSettings({
           >
             {options.map((model) => (
               <option key={model.id} value={model.id}>
-                {model.displayName}{model.displayName === model.id ? "" : ` (${model.id})`} — {model.reported === false ? "not reported by LM Studio" : model.loaded ? "loaded" : "available locally"}
+                {modelOptionLabel(model, options)}
               </option>
             ))}
           </select>
         </label>
-        <small>
-          Unloaded models require LM Studio Just-in-Time loading or manual loading before processing starts.
-        </small>
+        <div className="llm-model-meta">
+          <span className={`llm-model-availability ${draftOption?.loaded ? "loaded" : ""}`}>
+            <span aria-hidden="true" />
+            {draftOption?.reported === false ? "Not reported by LM Studio" : draftOption?.loaded ? "Loaded in LM Studio" : "Available locally"}
+          </span>
+          <small>Model ID <code>{draftModel}</code></small>
+          {!draftOption?.loaded && draftOption?.reported !== false && (
+            <small>Requires Just-in-Time loading or manual loading before processing starts.</small>
+          )}
+        </div>
         <div className="llm-model-actions">
           <button
             className="button primary"
@@ -118,4 +126,19 @@ export function LlmModelSettings({
       </form>
     </section>
   );
+}
+
+function modelOptionLabel(model: LlmModel, models: LlmModel[]): string {
+  const name = model.displayName.length > 42
+    ? `${model.displayName.slice(0, 41).trimEnd()}…`
+    : model.displayName;
+  const duplicate = models.filter((candidate) => candidate.displayName === model.displayName).length > 1;
+  const variant = model.id.includes("@")
+    ? model.id.slice(model.id.lastIndexOf("@") + 1).replaceAll("_", " ").toUpperCase()
+    : duplicate && model.id.includes("/")
+      ? model.id.slice(0, model.id.indexOf("/"))
+      : "";
+  return [name, variant, model.reported === false ? "Unavailable" : model.loaded ? "Loaded" : ""]
+    .filter(Boolean)
+    .join(" · ");
 }

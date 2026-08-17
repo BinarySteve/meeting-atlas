@@ -413,8 +413,17 @@ label { display: grid; gap: .4rem; color: var(--color-text-secondary); font-size
 .account-form-card { display: grid; align-content: start; gap: 1.25rem; padding: clamp(1rem,4vw,1.5rem); }
 .account-form-card form { display: grid; gap: .85rem; }
 .account-form-card form > .button { justify-self: start; }
-.llm-model-card { margin-bottom: 1.25rem; }
-.llm-model-card form { max-width: 48rem; }
+.llm-model-card { min-width: 0; margin-bottom: 1.25rem; overflow: hidden; }
+.llm-model-card > div, .llm-model-card form, .llm-model-card label { min-width: 0; }
+.llm-model-card form { width: 100%; max-width: 48rem; }
+.llm-model-card select { width: 100%; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.llm-model-meta { min-width: 0; display: grid; gap: .35rem; }
+.llm-model-meta small { min-width: 0; }
+.llm-model-meta code { overflow-wrap: anywhere; word-break: break-word; font: 600 .78rem/1.4 ui-monospace, "SFMono-Regular", Consolas, monospace; }
+.llm-model-availability { width: fit-content; display: inline-flex; align-items: center; gap: .4rem; color: var(--color-text-secondary); font-size: .78rem; font-weight: 700; }
+.llm-model-availability > span { width: .5rem; height: .5rem; background: var(--color-text-muted); border-radius: 50%; }
+.llm-model-availability.loaded { color: var(--color-success); }
+.llm-model-availability.loaded > span { background: var(--color-success); box-shadow: 0 0 0 3px var(--color-success-soft); }
 .llm-model-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .llm-model-actions .button { min-width: 9rem; }
 .backup-manager { margin: 1.25rem 0; }
