@@ -15,6 +15,7 @@ describe("structured summary repair", () => {
       new Set(["real-segment"]),
       new AbortController().signal,
       "request",
+      "local/model",
       request,
     );
 
@@ -22,11 +23,13 @@ describe("structured summary repair", () => {
     expect(request).toHaveBeenCalledTimes(2);
     expect(request.mock.calls[1][1].user).toContain('"real-segment"');
     expect(request.mock.calls[1][3]).toBe("request:repair");
+    expect(request.mock.calls[0][1].model).toBe("local/model");
+    expect(request.mock.calls[1][1].model).toBe("local/model");
   });
 
   it("does not call repair when first output is valid", async () => {
     const request = vi.fn().mockResolvedValue({ content: base });
-    await requestValidatedMeetingOutput("system", "source", new Set(["real"]), new AbortController().signal, "request", request);
+    await requestValidatedMeetingOutput("system", "source", new Set(["real"]), new AbortController().signal, "request", "local/model", request);
     expect(request).toHaveBeenCalledTimes(1);
   });
 
@@ -45,6 +48,7 @@ describe("structured summary repair", () => {
       new Set(["real-segment"]),
       new AbortController().signal,
       "request",
+      "local/model",
       request,
     );
 

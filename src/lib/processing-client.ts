@@ -6,6 +6,19 @@ import { z } from "zod";
 import { getEnv } from "./env";
 
 const processingResponse = z.record(z.string(), z.unknown());
+const processingModelsResponse = z.object({
+  models: z.array(z.object({
+    id: z.string().min(1).max(500),
+    display_name: z.string().min(1).max(500),
+    loaded: z.boolean(),
+  })).max(1_000),
+});
+
+export type AvailableLlmModel = {
+  id: string;
+  displayName: string;
+  loaded: boolean;
+};
 
 export async function streamProcessingRequest(endpoint: "transcribe" | "diarize", filePath: string, signal?: AbortSignal, requestId?: string): Promise<Record<string, unknown>> {
   const env = getEnv();
@@ -72,6 +85,19 @@ export async function processingHealthRequest(): Promise<Record<string, unknown>
   const text = await response.text();
   if (!response.ok) throw new Error(`Processing health HTTP ${response.status}: ${text.slice(0, 1000)}`);
   return processingResponse.parse(JSON.parse(text));
+}
+
+export async function processingModelsRequest(): Promise<AvailableLlmModel[]> {
+  const env = getEnv();
+  const response = await fetch(new URL("/v1/llm/models", env.PROCESSING_API_URL), {
+    headers: { authorization: `Bearer ${env.PROCESSING_API_CREDENTIAL}` },
+    signal: AbortSignal.timeout(env.HEALTH_TIMEOUT_MS),
+    cache: "no-store",
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`Processing model list HTTP ${response.status}: ${text.slice(0, 1_000)}`);
+  const parsed = processingModelsResponse.parse(JSON.parse(text));
+  return parsed.models.map((model) => ({ id: model.id, displayName: model.display_name, loaded: model.loaded }));
 }
 
 async function cancelRemoteRequest(baseUrl: string, credential: string, requestId: string): Promise<void> {

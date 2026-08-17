@@ -131,3 +131,4 @@ npm run retention:run
 - Processing `401`: credentials differ between Windows and Kubuntu.
 - Diarization degraded: confirm Pyannote `config.yaml`, `.meeting-atlas-model.json`, requested device, offline flags, and FastAPI health. For rollback, confirm WeSpeaker `avg_model.pt` and `config.yaml`.
 - LM Studio failure after transcript: retry resumes summary stage; audio work stays complete.
+- Selected LLM unavailable: load the selected model in LM Studio or enable Just-in-Time loading, open Settings, refresh the local model list, and select an available LLM. Existing retries retain their snapshotted model; start a new summary regeneration to use a newly selected model.

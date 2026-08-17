@@ -413,6 +413,10 @@ label { display: grid; gap: .4rem; color: var(--color-text-secondary); font-size
 .account-form-card { display: grid; align-content: start; gap: 1.25rem; padding: clamp(1rem,4vw,1.5rem); }
 .account-form-card form { display: grid; gap: .85rem; }
 .account-form-card form > .button { justify-self: start; }
+.llm-model-card { margin-bottom: 1.25rem; }
+.llm-model-card form { max-width: 48rem; }
+.llm-model-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.llm-model-actions .button { min-width: 9rem; }
 .backup-manager { margin: 1.25rem 0; }
 .backup-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: start; gap: 1rem; }
 .backup-heading > div { max-width: 48rem; }

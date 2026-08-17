@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from .diarization import diarization_status, diarize
 from .files import receive_stream
 from .llm import structured_completion
+from .models import available_llm_models
 from .security import require_service_auth
 from .settings import get_settings
 from .whisper import transcribe
@@ -26,6 +27,7 @@ class LlmRequest(BaseModel):
     system: str = Field(min_length=1, max_length=20_000)
     user: str = Field(min_length=1, max_length=1_000_000)
     schema_: dict[str, Any] = Field(alias="schema")
+    model: str | None = Field(default=None, min_length=1, max_length=500)
 
 
 @app.get("/health")
@@ -113,8 +115,18 @@ async def llm_route(
     return await registered(
         x_request_id,
         "summarization",
-        structured_completion(body.system, body.user, body.schema_),
+        structured_completion(body.system, body.user, body.schema_, body.model),
     )
+
+
+@app.get("/v1/llm/models")
+async def llm_models_route(
+    _: None = Depends(require_service_auth),
+) -> dict[str, Any]:
+    try:
+        return {"models": await available_llm_models()}
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
 
 
 @app.post("/v1/cancel/{request_id}")

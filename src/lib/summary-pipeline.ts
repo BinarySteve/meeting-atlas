@@ -23,6 +23,7 @@ export async function requestValidatedMeetingOutput(
   allowedIds: Set<string>,
   signal: AbortSignal,
   requestId: string,
+  model: string,
   request: StructuredRequest = processingJsonRequest,
 ): Promise<MeetingOutput> {
   const allowed = [...allowedIds];
@@ -31,6 +32,7 @@ export async function requestValidatedMeetingOutput(
     system,
     user: constrainedSource,
     schema: meetingOutputJsonSchema,
+    model,
   }, signal, requestId);
   try {
     return validateEvidence(meetingOutputSchema.parse(response.content), allowedIds);
@@ -40,6 +42,7 @@ export async function requestValidatedMeetingOutput(
       system: `${system}\nThis is one repair attempt. Correct the prior output. Do not introduce evidence IDs outside the exact allowlist. Remove an unsupported item instead of guessing evidence.`,
       user: `${constrainedSource}\n\nPrior invalid output:\n${JSON.stringify(response.content)}\n\nValidation error:\n${reason}`,
       schema: meetingOutputJsonSchema,
+      model,
     }, signal, `${requestId}:repair`);
     const parsed = meetingOutputSchema.parse(repaired.content);
     try {
@@ -54,10 +57,11 @@ export async function runSummaryPipeline(
   jobId: string,
   meetingId: string,
   transcriptVersionId: string,
-  options: { activate?: boolean } = {},
+  options: { activate?: boolean; model?: string } = {},
 ): Promise<string> {
   const env = getEnv();
-  await runStage(jobId, "summarization", async (stageAttemptId, signal) => {
+  const requestedModel = options.model ?? env.LM_STUDIO_MODEL;
+  const summaryStage = await runStage(jobId, "summarization", async (stageAttemptId, signal) => {
     const transcript = await db.transcriptVersion.findFirstOrThrow({
       where: { id: transcriptVersionId, meetingId },
       include: { segments: { orderBy: { ordinal: "asc" } } },
@@ -65,7 +69,7 @@ export async function runSummaryPipeline(
     const sections = sectionTranscript(transcript.segments);
     if (!sections.length) throw new Error("No transcript sections are included in summary");
     let summary = await db.summaryVersion.findFirst({
-      where: { meetingId, transcriptVersionId, status: "ACTIVE" },
+      where: { meetingId, transcriptVersionId, status: "ACTIVE", modelName: requestedModel },
       orderBy: { version: "desc" },
     });
     if (!summary) {
@@ -79,7 +83,7 @@ export async function runSummaryPipeline(
           transcriptVersionId,
           version: (latest._max.version ?? 0) + 1,
           status: "ACTIVE",
-          modelName: env.LM_STUDIO_MODEL,
+          modelName: requestedModel,
         },
       });
     }
@@ -98,6 +102,7 @@ export async function runSummaryPipeline(
         new Set(section.segmentIds),
         signal,
         `${stageAttemptId}:${section.ordinal}`,
+        summary.modelName,
       );
       await db.sectionSummary.create({
         data: {
@@ -115,13 +120,13 @@ export async function runSummaryPipeline(
     }
     return { summaryVersionId: summary.id, sectionCount: sections.length };
   });
+  const summaryVersionId = summaryStage?.summaryVersionId ?? await completedSummaryVersionId(jobId);
 
   await runStage(jobId, "structured_extraction", async (stageAttemptId, signal) => {
     await db.processingStageAttempt.update({ where: { id: stageAttemptId }, data: { progressCurrent: 0, progressTotal: 1, progressMessage: "Extracting summary, action items, decisions, and questions" } });
     await publishProcessingUpdate(meetingId);
     const summary = await db.summaryVersion.findFirstOrThrow({
-      where: { meetingId, transcriptVersionId, status: "ACTIVE" },
-      orderBy: { version: "desc" },
+      where: { id: summaryVersionId, meetingId, transcriptVersionId, status: "ACTIVE" },
       include: {
         sections: { orderBy: { ordinal: "asc" } },
         transcriptVersion: { include: { segments: true } },
@@ -133,6 +138,7 @@ export async function runSummaryPipeline(
       new Set(summary.transcriptVersion.segments.map((segment) => segment.id)),
       signal,
       stageAttemptId,
+      summary.modelName,
     );
     await db.$transaction(async (tx) => {
       await Promise.all([
@@ -196,9 +202,21 @@ export async function runSummaryPipeline(
     };
   });
   const completed = await db.summaryVersion.findFirstOrThrow({
-    where: { meetingId, transcriptVersionId, status: "COMPLETED" },
-    orderBy: { version: "desc" },
+    where: { id: summaryVersionId, meetingId, transcriptVersionId, status: "COMPLETED" },
     select: { id: true },
   });
   return completed.id;
+}
+
+async function completedSummaryVersionId(jobId: string): Promise<string> {
+  const stage = await db.processingStageAttempt.findFirstOrThrow({
+    where: { jobId, stage: "summarization", state: "COMPLETED" },
+    orderBy: { attempt: "desc" },
+    select: { result: true },
+  });
+  const summaryVersionId = stage.result && typeof stage.result === "object" && !Array.isArray(stage.result)
+    ? (stage.result as Record<string, unknown>).summaryVersionId
+    : undefined;
+  if (typeof summaryVersionId !== "string") throw new Error("Summarization stage did not record a summary version");
+  return summaryVersionId;
 }

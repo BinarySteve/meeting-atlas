@@ -13,7 +13,7 @@ Redesign keeps those contracts and makes transcript review the visual center. De
 - `/meetings/new` — upload-first new meeting flow; browser recording visibly unavailable until backend support exists
 - `/meetings/[id]` — transcript-centered meeting workspace
 - `/meetings/[id]?view=transcript|summary|actions|details` — mobile workspace modes
-- `/account` — account and passkey security
+- `/account` — account, local summary-model selection, backups, and passkey security
 - `/login` and `/offline` — authentication and offline fallback
 
 ## Component map
@@ -76,6 +76,6 @@ Landmarks, labeled navigation, tab semantics, status live regions, screen-reader
 ## Backend contract gaps
 
 - Browser live recording is not connected and is labeled “Coming soon.”
-- Language, model, diarization, expected speaker count, and summary options currently use worker-level defaults. Disabled controls disclose this instead of implying per-meeting persistence.
+- Language, transcription model, diarization, expected speaker count, and per-meeting summary options currently use worker-level defaults. Global summary-LLM selection is available under Settings; upload controls remain disabled because per-meeting overrides are not persisted.
 - Topic and notes extraction/storage are not present. Topics panel states this; no fabricated topics or notes are shown.
 - Participant identity beyond diarized speakers is unavailable.

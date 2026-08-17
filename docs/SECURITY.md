@@ -30,6 +30,10 @@ Client-side disabled controls are feedback, not authorization or concurrency enf
 
 Transcript reprocessing is owner-authenticated, bounded by the same active-job constraint, and targets only a transcript belonging to the meeting. It refuses a manually active transcript so derived machine processing cannot silently replace human work. PostgreSQL meeting-row locks serialize job creation with transcript editing and pointer restoration/activation. New raw artifacts and transcript versions are written immutably; active transcript/summary pointers change together only after successful completion.
 
+## Local LLM model selection
+
+Model listing and selection require the owner session, and selection mutations enforce the expected application origin. Next.js asks the authenticated processing service for LM Studio's local model inventory; browser code never receives an LM Studio address or credential and never contacts LM Studio directly. Only models reported as local LLMs can be selected. Selection does not download or load a model. New jobs persist the selected identifier before enqueue, while active jobs, retries, and summary versions retain their original model for auditability.
+
 ## Enforced
 
 - Single owner; Argon2id password; signed 12-hour HTTP-only SameSite=Strict cookie with two-hour server-side idle expiry.

@@ -6,10 +6,16 @@ import httpx
 from .settings import get_settings
 
 
-async def structured_completion(system: str, user: str, schema: dict[str, Any]) -> dict[str, Any]:
+async def structured_completion(
+    system: str,
+    user: str,
+    schema: dict[str, Any],
+    model: str | None = None,
+) -> dict[str, Any]:
     settings = get_settings()
+    selected_model = model or settings.lm_studio_model
     payload = {
-        "model": settings.lm_studio_model,
+        "model": selected_model,
         "temperature": 0,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         "response_format": {
@@ -47,7 +53,7 @@ async def structured_completion(system: str, user: str, schema: dict[str, Any]) 
     body = response.json()
     content = body["choices"][0]["message"]["content"]
     return {
-        "model": settings.lm_studio_model,
+        "model": selected_model,
         "content": json.loads(content),
         "usage": body.get("usage"),
         "schema_fallback": schema_fallback,

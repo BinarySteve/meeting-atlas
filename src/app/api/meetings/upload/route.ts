@@ -9,6 +9,7 @@ import { getEnv } from "@/lib/env";
 import { enqueuePipeline } from "@/lib/queue";
 import { createStorageWriteStream, newStorageKey, resolveStorageKey } from "@/lib/storage";
 import { publishProcessingUpdate } from "@/lib/processing-status";
+import { selectedLlmModel } from "@/lib/llm-models";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,8 +30,9 @@ export async function POST(request: Request) {
   try { await pipeline(Readable.fromWeb(request.body as import("node:stream/web").ReadableStream), meter, output); }
   catch (error) { const failedPath = await resolveStorageKey(storageKey); await import("node:fs/promises").then((fs) => fs.unlink(failedPath).catch(() => undefined)); return NextResponse.json({ error: error instanceof Error ? error.message : "Upload failed" }, { status: 413 }); }
   const result = await db.$transaction(async (tx) => {
+    const llmModel = await selectedLlmModel(userId, tx);
     const meeting = await tx.meeting.create({ data: { title, recordingDate, state: "QUEUED", recordings: { create: { storageKey, originalFilename, byteSize: BigInt(size), sha256: hash.digest("hex") } } } });
-    const job = await tx.processingJob.create({ data: { meetingId: meeting.id } });
+    const job = await tx.processingJob.create({ data: { meetingId: meeting.id, llmModel } });
     await tx.auditEvent.create({ data: { userId, meetingId: meeting.id, action: "meeting.upload", entityType: "Meeting", entityId: meeting.id, metadata: { originalFilename, byteSize: size } } });
     return { meeting, job };
   }).catch(async (error: unknown) => {

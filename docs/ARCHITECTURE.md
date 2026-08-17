@@ -22,11 +22,13 @@ Stages: upload validation → inspection → normalization → transcription →
 
 Every attempt stores state, timestamps, error, result, attempt number, heartbeat, and unique idempotency key. Completed-stage guard resumes first incomplete stage. BullMQ retries exponentially and recovers stalled jobs. Cancellation polling reaches active local subprocesses and authenticated remote requests. Summary regeneration creates a `SUMMARY_REGENERATION` job targeting one transcript version, so audio stages never rerun. Transcript reprocessing creates a `TRANSCRIPT_REPROCESS` job, reuses a duration-valid normalized WAV and immutable diarization artifact only when normalized storage identity, backend, model revision, speaker bounds, and configuration fingerprint match, writes new raw/output artifacts, then atomically activates the new machine transcript and completed summary.
 
+The owner can choose a downloaded local LM Studio LLM under Settings. The browser reads the model list only through authenticated Next.js and FastAPI endpoints; it never contacts LM Studio. Each new processing job snapshots the selected model in PostgreSQL, and each summary version records that model. A later settings change affects only new jobs, so active work and retries cannot mix models.
+
 PostgreSQL is the authoritative processing-status store, including durable within-stage progress. A partial unique index permits only one active job per meeting, while stable BullMQ job IDs deduplicate same-run enqueue attempts. Workers publish lightweight Redis invalidations; authenticated server-sent events re-read PostgreSQL and push snapshots to every meeting tab. The UI disables conflicting actions immediately, shows queued/running/retrying/completed/failed states, and refreshes meeting artifacts once when a run becomes terminal.
 
 ### Processing state ownership
 
-- `ProcessingJob` owns the run type, target transcript version, lifecycle state, attempt count, heartbeat, terminal error, and timestamps.
+- `ProcessingJob` owns the run type, target transcript version, snapshotted LLM model, lifecycle state, attempt count, heartbeat, terminal error, and timestamps.
 - `ProcessingStageAttempt` owns stage state, attempt number, idempotency key, result/error data, and optional current/total/message progress.
 - PostgreSQL's partial unique index covers `QUEUED`, `ACTIVE`, `RETRYING`, and `CANCEL_REQUESTED`, closing the query-then-insert race for all job-creation paths.
 - BullMQ job IDs combine the durable job ID and run revision. Repeated enqueue calls for the same run collapse, while an explicit retry receives a new revision.

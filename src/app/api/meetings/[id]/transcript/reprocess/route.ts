@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getProcessingSnapshot, publishProcessingUpdate } from "@/lib/processing-status";
 import { enqueuePipeline } from "@/lib/queue";
 import { resolveStorageKey } from "@/lib/storage";
+import { selectedLlmModel } from "@/lib/llm-models";
 
 export async function POST(_request: Request, context: RouteContext<"/api/meetings/[id]/transcript/reprocess">) {
   let userId: string;
@@ -35,7 +36,8 @@ export async function POST(_request: Request, context: RouteContext<"/api/meetin
       if (current.activeTranscriptVersion.source === "MANUAL") throw new Error("MANUAL_TRANSCRIPT_PROTECTED");
       const activeJob = await tx.processingJob.findFirst({ where: { meetingId: id, state: { in: ["QUEUED", "ACTIVE", "RETRYING", "CANCEL_REQUESTED"] } }, select: { id: true } });
       if (activeJob) throw new Error("PROCESSING_ACTIVE");
-      const created = await tx.processingJob.create({ data: { meetingId: id, kind: "TRANSCRIPT_REPROCESS", targetTranscriptVersionId: current.activeTranscriptVersion.id } });
+      const llmModel = await selectedLlmModel(userId, tx);
+      const created = await tx.processingJob.create({ data: { meetingId: id, kind: "TRANSCRIPT_REPROCESS", targetTranscriptVersionId: current.activeTranscriptVersion.id, llmModel } });
       await writeAudit(tx, { userId, meetingId: id, action: "transcript.reprocess", entityType: "ProcessingJob", entityId: created.id, metadata: { sourceTranscriptVersionId: current.activeTranscriptVersion.id } });
       return created;
     });

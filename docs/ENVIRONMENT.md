@@ -22,7 +22,7 @@
 - `PROCESSING_API_URL`: private FastAPI base URL.
 - `PROCESSING_API_CREDENTIAL`: shared 32+ byte service secret.
 - `LM_STUDIO_URL`: local LM Studio OpenAI-compatible `/v1` URL used by health checks.
-- `LM_STUDIO_MODEL`: local model identifier.
+- `LM_STUDIO_MODEL`: fallback local model identifier used until the owner selects a model in Settings and for pre-migration jobs without a snapshot.
 - `FFPROBE_PATH`, `FFMPEG_PATH`: executable names/absolute paths for native execution. The Docker image installs FFmpeg and Compose overrides both values with Linux container commands, even if the host `.env` contains Windows paths.
 - `PG_DUMP_PATH`, `PG_RESTORE_PATH`, `TAR_PATH`: optional native backup tool overrides. Runtime image includes PostgreSQL client tools and tar.
 - `SUBPROCESS_TIMEOUT_MS`: upper bound for long local/remote work.
@@ -56,5 +56,5 @@ Next.js and Compose both use TCP `6982`; Compose publishes host TCP `6982` to co
 - `WESPEAKER_MODEL_PATH`: rollback-only directory containing `avg_model.pt` + `config.yaml`.
 - `WESPEAKER_DEVICE`: `cpu` or ROCm PyTorch `cuda[:index]`.
 - `WESPEAKER_MIN_DURATION`, `WESPEAKER_WINDOW_SECONDS`, `WESPEAKER_PERIOD_SECONDS`, `WESPEAKER_BATCH_SIZE`: diarization tuning.
-- `LM_STUDIO_URL`, `LM_STUDIO_MODEL`, `LM_STUDIO_TIMEOUT_SECONDS`: local structured-generation endpoint/config.
+- `LM_STUDIO_URL`, `LM_STUDIO_MODEL`, `LM_STUDIO_TIMEOUT_SECONDS`: local structured-generation endpoint, fallback model, and timeout. Settings lists downloaded LLMs through LM Studio's local `/api/v1/models` API; it never downloads a model.
 - `HF_HUB_OFFLINE`, `HF_HUB_DISABLE_TELEMETRY`, `TRANSFORMERS_OFFLINE`, `PYANNOTE_METRICS_ENABLED=0`: forced by systemd/runtime. Never configure a Hugging Face token in runtime environment.

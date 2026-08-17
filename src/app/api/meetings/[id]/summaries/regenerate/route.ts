@@ -5,6 +5,7 @@ import { writeAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { enqueuePipeline } from "@/lib/queue";
 import { getProcessingSnapshot, publishProcessingUpdate } from "@/lib/processing-status";
+import { selectedLlmModel } from "@/lib/llm-models";
 
 const bodySchema = z.object({ transcriptVersionId: z.string().min(1) });
 
@@ -26,7 +27,8 @@ export async function POST(request: Request, context: RouteContext<"/api/meeting
       if (current?.activeTranscriptVersionId !== transcript.id) throw new Error("TRANSCRIPT_NOT_ACTIVE");
       const activeJob = await tx.processingJob.findFirst({ where: { meetingId: id, state: { in: ["QUEUED", "ACTIVE", "RETRYING", "CANCEL_REQUESTED"] } }, select: { id: true } });
       if (activeJob) throw new Error("PROCESSING_ACTIVE");
-      const created = await tx.processingJob.create({ data: { meetingId: id, kind: "SUMMARY_REGENERATION", targetTranscriptVersionId: transcript.id } });
+      const llmModel = await selectedLlmModel(userId, tx);
+      const created = await tx.processingJob.create({ data: { meetingId: id, kind: "SUMMARY_REGENERATION", targetTranscriptVersionId: transcript.id, llmModel } });
       await writeAudit(tx, { userId, meetingId: id, action: "summary.regenerate", entityType: "ProcessingJob", entityId: created.id, metadata: { transcriptVersionId: transcript.id } });
       return created;
     });

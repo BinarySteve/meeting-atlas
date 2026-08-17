@@ -62,6 +62,7 @@ model User {
   id                 String              @id @default(cuid())
   email              String              @unique
   name               String?
+  llmModel           String?
   passwordHash       String
   passwordChangedAt  DateTime?
   webauthnUserId     String?             @unique
@@ -177,6 +178,7 @@ model ProcessingJob {
   state                     JobState                 @default(QUEUED)
   kind                      JobKind                  @default(AUDIO_PIPELINE)
   targetTranscriptVersionId String?
+  llmModel                  String?
   activeStage               String?
   attempt                   Int                      @default(0)
   heartbeatAt               DateTime?

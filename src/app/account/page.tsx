@@ -5,8 +5,11 @@ import { SECURITY_ACTIONS } from "@/lib/security-events";
 import { AccountSettings } from "./account-settings";
 import { PasskeyManager } from "./passkey-manager";
 import { BackupManager } from "./backup-manager";
+import { LlmModelSettings } from "./llm-model-settings";
+import { getEnv } from "@/lib/env";
+import { processingModelsRequest } from "@/lib/processing-client";
 
-export const metadata: Metadata = { title: "Account security" };
+export const metadata: Metadata = { title: "Settings" };
 
 export default async function AccountPage() {
   const current = await requireSession();
@@ -16,6 +19,7 @@ export default async function AccountPage() {
     select: {
       name: true,
       email: true,
+      llmModel: true,
       passwordChangedAt: true,
       passkeys: {
         select: {
@@ -54,13 +58,21 @@ export default async function AccountPage() {
       },
     },
   });
+  let initialModels: Awaited<ReturnType<typeof processingModelsRequest>> = [];
+  let initialModelError = "";
+  try {
+    initialModels = await processingModelsRequest();
+    if (!initialModels.length) initialModelError = "LM Studio reports no local LLM models.";
+  } catch {
+    initialModelError = "Unable to read local LM Studio models.";
+  }
   return (
     <main className="page-shell account-page">
       <header className="page-intro account-header">
         <div>
           <p className="eyebrow">Account</p>
           <h1>{user.name?.trim() || "Owner"}</h1>
-          <p>Manage identity, recovery, sessions, and trusted devices.</p>
+          <p>Manage local processing, identity, recovery, sessions, and trusted devices.</p>
         </div>
         <span className="account-local-badge">
           <span aria-hidden="true">✓</span> Local owner account
@@ -83,6 +95,11 @@ export default async function AccountPage() {
           ...event,
           createdAt: event.createdAt.toISOString(),
         }))}
+      />
+      <LlmModelSettings
+        initialModel={user.llmModel?.trim() || getEnv().LM_STUDIO_MODEL}
+        initialModels={initialModels}
+        initialError={initialModelError}
       />
       <BackupManager />
       <PasskeyManager
