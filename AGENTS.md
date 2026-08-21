@@ -7,7 +7,7 @@ This file applies to the whole repository. A nested `AGENTS.md` adds narrower ru
 Meeting Atlas is a single-owner, LAN-only meeting transcription system. Privacy and recoverability outrank convenience.
 
 - Never add cloud inference, hosted storage, telemetry, analytics, remote fonts, remote runtime assets, or automatic model downloads.
-- Browser code talks only to authenticated Next.js endpoints. It must never address PostgreSQL, Redis, FastAPI, LM Studio, whisper.cpp, or WeSpeaker directly.
+- Browser code talks only to authenticated Next.js endpoints. It must never address PostgreSQL, Redis, FastAPI, llama.cpp, whisper.cpp, or WeSpeaker directly.
 - Never log or cache recordings, transcripts, summaries, credentials, cookies, tokens, WebAuthn payloads, or full request bodies.
 - PostgreSQL is authoritative. Redis/BullMQ carry queues and invalidations, not canonical meeting or processing state.
 - Original recordings and raw transcription/diarization artifacts are immutable. Derived versions must remain auditable.

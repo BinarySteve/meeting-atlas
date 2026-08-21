@@ -12,5 +12,5 @@ export async function selectedLlmModel(
     where: { id: userId },
     select: { llmModel: true },
   });
-  return user.llmModel?.trim() || getEnv().LM_STUDIO_MODEL;
+  return user.llmModel?.trim() || getEnv().LLAMA_CPP_MODEL;
 }

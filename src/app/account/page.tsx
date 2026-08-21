@@ -62,9 +62,9 @@ export default async function AccountPage() {
   let initialModelError = "";
   try {
     initialModels = await processingModelsRequest();
-    if (!initialModels.length) initialModelError = "LM Studio reports no local LLM models.";
+    if (!initialModels.length) initialModelError = "The llama.cpp router reports no local LLM models.";
   } catch {
-    initialModelError = "Unable to read local LM Studio models.";
+    initialModelError = "Unable to read llama.cpp router models.";
   }
   return (
     <main className="page-shell account-page">
@@ -97,7 +97,7 @@ export default async function AccountPage() {
         }))}
       />
       <LlmModelSettings
-        initialModel={user.llmModel?.trim() || getEnv().LM_STUDIO_MODEL}
+        initialModel={user.llmModel?.trim() || getEnv().LLAMA_CPP_MODEL}
         initialModels={initialModels}
         initialError={initialModelError}
       />

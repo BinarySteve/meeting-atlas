@@ -32,7 +32,7 @@ new Worker<{ jobId: string }>(PIPELINE_QUEUE, async (bullJob) => {
   await publishProcessingUpdate(job.meetingId);
   if (job.kind === "SUMMARY_REGENERATION") {
     if (!job.targetTranscriptVersionId) throw new Error("Summary job has no target transcript version");
-    await runSummaryPipeline(job.id, job.meetingId, job.targetTranscriptVersionId, { model: job.llmModel ?? getEnv().LM_STUDIO_MODEL });
+    await runSummaryPipeline(job.id, job.meetingId, job.targetTranscriptVersionId, { model: job.llmModel ?? getEnv().LLAMA_CPP_MODEL });
     await runStage(job.id, "completion", async () => {
       await db.$transaction([
         db.processingJob.update({ where: { id: job.id }, data: { state: "COMPLETED", activeStage: null } }),
@@ -151,7 +151,7 @@ new Worker<{ jobId: string }>(PIPELINE_QUEUE, async (bullJob) => {
       if (!count) throw new Error("Aligned transcript is empty");
       return { segmentCount: count };
     });
-    const summaryVersionId = await runSummaryPipeline(job.id, job.meetingId, transcriptVersionId, { activate: false, model: job.llmModel ?? getEnv().LM_STUDIO_MODEL });
+    const summaryVersionId = await runSummaryPipeline(job.id, job.meetingId, transcriptVersionId, { activate: false, model: job.llmModel ?? getEnv().LLAMA_CPP_MODEL });
     await runStage(job.id, "completion", async () => {
       await db.$transaction([
         db.processingJob.update({ where: { id: job.id }, data: { state: "COMPLETED", activeStage: null } }),

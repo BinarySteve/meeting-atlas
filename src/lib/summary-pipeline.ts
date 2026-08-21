@@ -60,7 +60,7 @@ export async function runSummaryPipeline(
   options: { activate?: boolean; model?: string } = {},
 ): Promise<string> {
   const env = getEnv();
-  const requestedModel = options.model ?? env.LM_STUDIO_MODEL;
+  const requestedModel = options.model ?? env.LLAMA_CPP_MODEL;
   const summaryStage = await runStage(jobId, "summarization", async (stageAttemptId, signal) => {
     const transcript = await db.transcriptVersion.findFirstOrThrow({
       where: { id: transcriptVersionId, meetingId },

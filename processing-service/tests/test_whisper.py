@@ -95,5 +95,5 @@ def test_settings_reject_timeline_compacting_vad(tmp_path: Path) -> None:
             whisper_model_path=tmp_path / "model.bin",
             whisper_vad_enabled=True,
             pyannote_model_path=tmp_path / "pyannote",
-            lm_studio_model="local-model",
+            llama_cpp_model="local-model",
         )

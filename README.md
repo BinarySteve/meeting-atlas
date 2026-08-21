@@ -20,7 +20,7 @@ LAN-only, local-first meeting transcription for Windows + Kubuntu. Browser talks
 | Audio-synchronized transcript playback | Implemented |
 | Auditable transcript edits and speaker rename | Implemented |
 | Auditable transcript/speaker reprocessing and version activation | Implemented |
-| Hierarchical LM Studio summaries and structured evidence | Implemented |
+| Hierarchical llama.cpp summaries and structured evidence | Implemented |
 | Summary regeneration/history/restore | Implemented |
 | Action items, decisions, open questions | Implemented |
 | PostgreSQL full-text search and filters | Implemented |
@@ -44,11 +44,11 @@ Processing status is pushed through an authenticated server-sent event stream. R
 
 The installable Meeting Atlas PWA precaches only its public offline experience, required static UI assets, manifest, and purpose-built icons. Authenticated HTML, APIs, recordings, audio ranges, transcripts, summaries, outcomes, and auth traffic remain network-only. Offline mode reports server availability, helps reconnect, and never shows stale private records.
 
-LM Studio structured-output support varies by loaded model/runtime. The processor first requests strict JSON Schema output; on a schema-format HTTP 400 it retries once in text mode with the exact schema embedded in the local prompt. The web worker still parses with a strict Zod schema and validates every evidence segment ID before saving anything.
+The llama.cpp processor first requests strict JSON Schema output with explicit sampling parameters and thinking disabled; on a schema-format HTTP 400 it retries once in text mode with the exact schema embedded in the local prompt. The web worker still parses with a strict Zod schema and validates every evidence segment ID before saving anything.
 
 ## Data flow
 
-Browser → Next.js streaming upload → immutable filesystem object → PostgreSQL meeting/job transaction → Redis/BullMQ worker → FFprobe → FFmpeg normalized copy → authenticated FastAPI → local whisper.cpp + Pyannote + LM Studio → versioned PostgreSQL artifacts.
+Browser → Next.js streaming upload → immutable filesystem object → PostgreSQL meeting/job transaction → Redis/BullMQ worker → FFprobe → FFmpeg normalized copy → authenticated FastAPI → local whisper.cpp + Pyannote + llama.cpp router → versioned PostgreSQL artifacts.
 
 Worker state change → durable PostgreSQL job/stage snapshot → Redis invalidation → authenticated Next.js SSE snapshot → live meeting UI. PostgreSQL remains authoritative; Redis accelerates delivery but is not required to reconstruct status.
 
@@ -59,7 +59,7 @@ Closing or refreshing browser does not affect processing. Completed stages and w
 - No cloud transcription, diarization, LLM, storage, analytics, fonts, icons, assets, or error monitoring.
 - Hugging Face account/token is used only at the interactive operator-run Community-1 download prompt. It is never stored in application configuration or available to runtime services.
 - Model libraries and Pyannote metrics are forced offline during normal processing.
-- Browser never reaches LM Studio, FastAPI, whisper.cpp, Pyannote, Redis, or PostgreSQL.
+- Browser never reaches llama.cpp, FastAPI, whisper.cpp, Pyannote, Redis, or PostgreSQL.
 - Structured logs contain IDs, stages, duration, backend, and bounded errors—never full transcripts, audio, secrets, tokens, or request bodies.
 - Original file preserved byte-for-byte. Stable relative storage keys prevent Windows-path coupling.
 

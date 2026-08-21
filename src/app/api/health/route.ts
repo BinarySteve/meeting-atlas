@@ -16,7 +16,7 @@ export async function GET() {
   const env = getEnv();
   checks.ffmpeg = await commandHealth(env.FFMPEG_PATH);
   checks.ffprobe = await commandHealth(env.FFPROBE_PATH);
-  checks.lmStudio = await httpHealth(`${env.LM_STUDIO_URL}/models`);
+  checks.llamaCpp = await httpHealth(`${env.LLAMA_CPP_URL}/models`);
   checks.processingService = env.PROCESSING_MODE === "simulation" ? { status: "degraded", detail: "Development simulation mode" } : await httpHealth(`${env.PROCESSING_API_URL}/health`, { authorization: `Bearer ${env.PROCESSING_API_CREDENTIAL}` });
   const required = [checks.database, checks.redis, checks.worker, checks.ffmpeg, checks.ffprobe];
   const status = required.some((check) => check.status === "unavailable") ? "unavailable" : Object.values(checks).every((check) => check.status === "healthy") ? "healthy" : "degraded";

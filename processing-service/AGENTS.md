@@ -17,7 +17,7 @@ Applies to the Python FastAPI service, model adapters, tests, setup scripts, and
 - WeSpeaker overlap limitations are known. Ambiguous or low-confidence assignments must remain unassigned.
 - Changes to timing, clustering, alignment contracts, or response schemas require matching TypeScript consumer changes and regression tests.
 - Hardware backends must be explicit (`vulkan`, `rocm`, or `cpu`); do not silently report GPU use without verified backend behavior.
-- LM Studio responses remain untrusted input. Preserve strict structured validation and bounded fallback behavior.
+- llama.cpp router responses remain untrusted input. Preserve strict structured validation and bounded fallback behavior.
 
 ## Verification
 

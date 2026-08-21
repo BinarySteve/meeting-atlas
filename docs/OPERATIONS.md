@@ -43,7 +43,7 @@ Set `WHISPER_BACKEND`, `WHISPER_EXECUTABLE`, restart service, then verify `/heal
 Invoke-RestMethod http://127.0.0.1:6982/api/health
 ```
 
-Expected components: database, Redis, worker heartbeat, FFmpeg, FFprobe, LM Studio, processing service. FastAPI `/health` requires bearer credential and reports Whisper executable/model, absolute-timeline readiness, VAD setting, diarization backend/model revision/manifest digest/config fingerprint, requested and actual device, capabilities, and offline flags. `whisper_vad_enabled` must report false. Pyannote health must show the expected local revision, `PYANNOTE_METRICS_ENABLED=0`, and no unavailable device.
+Expected components: database, Redis, worker heartbeat, FFmpeg, FFprobe, llama.cpp router, processing service. FastAPI `/health` requires bearer credential and reports Whisper executable/model, absolute-timeline readiness, VAD setting, diarization backend/model revision/manifest digest/config fingerprint, requested and actual device, capabilities, and offline flags. `whisper_vad_enabled` must report false. Pyannote health must show the expected local revision, `PYANNOTE_METRICS_ENABLED=0`, and no unavailable device.
 
 ## Pyannote offline setup and promotion
 
@@ -130,5 +130,5 @@ npm run retention:run
 - FFprobe error: file is malformed/unsupported or contains no audio stream.
 - Processing `401`: credentials differ between Windows and Kubuntu.
 - Diarization degraded: confirm Pyannote `config.yaml`, `.meeting-atlas-model.json`, requested device, offline flags, and FastAPI health. For rollback, confirm WeSpeaker `avg_model.pt` and `config.yaml`.
-- LM Studio failure after transcript: retry resumes summary stage; audio work stays complete.
-- Selected LLM unavailable: load the selected model in LM Studio or enable Just-in-Time loading, open Settings, refresh the local model list, and select an available LLM. Existing retries retain their snapshotted model; start a new summary regeneration to use a newly selected model.
+- llama.cpp router failure after transcript: retry resumes summary stage; audio work stays complete.
+- Selected LLM unavailable: verify the model preset in the router, open Settings, refresh the model list, and select an available alias. Existing retries retain their snapshotted model; start a new summary regeneration to use a newly selected model.

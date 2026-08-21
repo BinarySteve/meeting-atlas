@@ -34,7 +34,7 @@ export function LlmModelSettings({
       setModels(result.models);
       setSelectedModel(result.selectedModel);
       setDraftModel(result.selectedModel);
-      if (!result.models.length) setMessage("LM Studio reports no local LLM models.");
+      if (!result.models.length) setMessage("The llama.cpp router reports no local LLM models.");
     } catch {
       setMessage("Unable to reach the local model service.");
     } finally {
@@ -79,7 +79,7 @@ export function LlmModelSettings({
         <p className="eyebrow">Local processing</p>
         <h2>Summary LLM model</h2>
         <p>
-          Choose which local LM Studio model creates summaries and outcomes. New jobs snapshot this choice; running jobs and retries keep their original model.
+          Choose which llama.cpp router model creates summaries and outcomes. New jobs snapshot this choice; running jobs and retries keep their original model.
         </p>
       </div>
       <form onSubmit={(event) => void saveModel(event)}>
@@ -100,7 +100,7 @@ export function LlmModelSettings({
         <div className="llm-model-meta">
           <span className={`llm-model-availability ${draftOption?.loaded ? "loaded" : ""}`}>
             <span aria-hidden="true" />
-            {draftOption?.reported === false ? "Not reported by LM Studio" : draftOption?.loaded ? "Loaded in LM Studio" : "Available locally"}
+            {draftOption?.reported === false ? "Not reported by router" : draftOption?.loaded ? "Loaded in llama.cpp" : "Available on demand"}
           </span>
           <small>Model ID <code>{draftModel}</code></small>
           {!draftOption?.loaded && draftOption?.reported !== false && (

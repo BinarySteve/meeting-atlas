@@ -6,7 +6,7 @@ def test_health_rejects_missing_auth(monkeypatch):
     monkeypatch.setenv("WHISPER_EXECUTABLE", "/missing/whisper-cli")
     monkeypatch.setenv("WHISPER_MODEL_PATH", "/missing/model.bin")
     monkeypatch.setenv("PYANNOTE_MODEL_PATH", "/missing/pyannote")
-    monkeypatch.setenv("LM_STUDIO_MODEL", "local-model")
+    monkeypatch.setenv("LLAMA_CPP_MODEL", "local-model")
     from meeting_processor.app import app
 
     response = TestClient(app).get("/health")
@@ -25,7 +25,7 @@ def test_health_reports_offline_pyannote_configuration(monkeypatch, tmp_path):
     monkeypatch.setenv("WHISPER_EXECUTABLE", str(tmp_path / "whisper-cli"))
     monkeypatch.setenv("WHISPER_MODEL_PATH", str(tmp_path / "model.bin"))
     monkeypatch.setenv("PYANNOTE_MODEL_PATH", str(model))
-    monkeypatch.setenv("LM_STUDIO_MODEL", "local-model")
+    monkeypatch.setenv("LLAMA_CPP_MODEL", "local-model")
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
     monkeypatch.setenv("HF_HUB_DISABLE_TELEMETRY", "1")
     monkeypatch.setenv("TRANSFORMERS_OFFLINE", "1")

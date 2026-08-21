@@ -38,9 +38,15 @@ class Settings(BaseSettings):
     wespeaker_period_seconds: float = Field(default=0.75, gt=0, le=30)
     wespeaker_batch_size: int = Field(default=32, ge=1, le=1024)
 
-    lm_studio_url: str = "http://127.0.0.1:1234/v1"
-    lm_studio_model: str
-    lm_studio_timeout_seconds: int = 600
+    llama_cpp_url: str = "http://192.168.4.30:8081/v1"
+    llama_cpp_model: str = "qwen3.6-35b-a3b"
+    llama_cpp_timeout_seconds: int = 600
+    llama_cpp_temperature: float = Field(default=0.0, ge=0, le=2)
+    llama_cpp_top_p: float = Field(default=0.95, ge=0, le=1)
+    llama_cpp_top_k: int = Field(default=40, ge=0)
+    llama_cpp_min_p: float = Field(default=0.05, ge=0, le=1)
+    llama_cpp_repeat_penalty: float = Field(default=1.05, gt=0)
+    llama_cpp_max_tokens: int = Field(default=8192, gt=0)
 
     @model_validator(mode="after")
     def require_absolute_whisper_timeline(self) -> "Settings":

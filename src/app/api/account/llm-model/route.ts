@@ -24,7 +24,7 @@ export async function GET() {
     return NextResponse.json({ models, selectedModel: model });
   } catch {
     return NextResponse.json(
-      { error: "Unable to read local LM Studio models." },
+      { error: "Unable to read llama.cpp router models." },
       { status: 503 },
     );
   }
@@ -48,7 +48,7 @@ export async function PATCH(request: Request) {
     const models = await processingModelsRequest();
     if (!models.some((model) => model.id === parsed.data.model)) {
       return NextResponse.json(
-        { error: "That model is not available in LM Studio. Refresh the list and try again." },
+        { error: "That model is not available in the llama.cpp router. Refresh the list and try again." },
         { status: 409 },
       );
     }

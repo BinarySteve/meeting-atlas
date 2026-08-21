@@ -32,7 +32,7 @@ Transcript reprocessing is owner-authenticated, bounded by the same active-job c
 
 ## Local LLM model selection
 
-Model listing and selection require the owner session, and selection mutations enforce the expected application origin. Next.js asks the authenticated processing service for LM Studio's local model inventory; browser code never receives an LM Studio address or credential and never contacts LM Studio directly. Only models reported as local LLMs can be selected. Selection does not download or load a model. New jobs persist the selected identifier before enqueue, while active jobs, retries, and summary versions retain their original model for auditability.
+Model listing and selection require the owner session, and selection mutations enforce the expected application origin. Next.js asks the authenticated processing service for the llama.cpp router inventory; browser code never receives a router address or credential and never contacts it directly. Only models reported by the private router can be selected. Selection does not download a model; the router may load it on the first request. New jobs persist the selected alias before enqueue, while active jobs, retries, and summary versions retain their original model for auditability.
 
 ## Enforced
 
@@ -52,17 +52,17 @@ Model listing and selection require the owner session, and selection mutations e
 
 ## Network policy
 
-Windows firewall should allow TCP 6982 only from trusted LAN/VLAN or the Nginx Proxy Manager host. Kubuntu should allow TCP 8080 only from Windows homelab IP. LM Studio TCP 1234 should allow only Kubuntu loopback/service needs. PostgreSQL/Redis must not bind LAN in production. Deny WAN/Cloudflare exposure.
+Windows firewall should allow TCP 6982 only from trusted LAN/VLAN or the Nginx Proxy Manager host. Kubuntu should allow processing TCP 8080 only from the Windows homelab IP and llama.cpp router TCP 8081 only from trusted processing hosts. PostgreSQL/Redis must not bind LAN in production. Deny WAN/Cloudflare exposure.
 
 Example Kubuntu UFW rules (adjust Windows IP):
 
 ```bash
 sudo ufw allow from 192.168.4.20 to any port 8080 proto tcp
 sudo ufw deny 8080/tcp
-sudo ufw deny 1234/tcp
+sudo ufw deny 8081/tcp
 ```
 
-Verify rule order before enabling. If Windows directly health-checks LM Studio, allow only its exact IP to 1234 instead of blanket deny.
+Verify rule order before enabling. If another trusted host directly health-checks the router, allow only its exact IP to 8081 before the deny rule.
 
 ## Residual risks
 

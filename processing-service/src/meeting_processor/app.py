@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from .diarization import diarization_status, diarize
 from .files import receive_stream
 from .llm import structured_completion
-from .models import available_llm_models
+from .router_models import available_llm_models
 from .security import require_service_auth
 from .settings import get_settings
 from .whisper import transcribe
@@ -68,7 +68,7 @@ def health(_: None = Depends(require_service_auth)) -> dict[str, Any]:
         "diarization_speaker_bounds": diarization["speaker_bounds"],
         "diarization_capabilities": diarization["capabilities"],
         "offline_flags": offline_flags,
-        "lm_studio_model": settings.lm_studio_model,
+        "llama_cpp_model": settings.llama_cpp_model,
     }
 
 
